@@ -14,7 +14,7 @@ coroutines = "1.10.2"
 
 # Us
 pydroid = "29.2.0"
-ktor = "3.3.1-PYAMSOFT"
+ktor = "3.3.1"
 
 # Square
 leakCanary = "2.14"
@@ -92,8 +92,9 @@ kotlin-test = { group = "org.jetbrains.kotlin", name = "kotlin-test", version.re
 kotlinx-coroutines = { group = "org.jetbrains.kotlinx", name = "kotlinx-coroutines-core", version.ref = "coroutines" }
 kotlinx-coroutines-test = { group = "org.jetbrains.kotlinx", name = "kotlinx-coroutines-test", version.ref = "coroutines" }
 
-ktor-network = { group = "io.ktor", name = "ktor-network", version.ref = "ktor" }
-ktor-server-netty = { group = "io.ktor", name = "ktor-server-netty-jvm", version.ref = "ktor" }
+ktor-network = { module = "io.ktor:ktor-network", version.ref = "ktor" }
+ktor-server-core = { module = "io.ktor:ktor-server-core", version.ref = "ktor" }
+ktor-server-netty = { module = "io.ktor:ktor-server-netty", version.ref = "ktor" }
 
 leakcanary = { group = "com.squareup.leakcanary", name = "leakcanary-android", version.ref = "leakCanary" }
 leakcanary-plumber = { group = "com.squareup.leakcanary", name = "plumber-android", version.ref = "leakCanary" }

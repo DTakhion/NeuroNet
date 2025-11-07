@@ -1,18 +1,16 @@
-*.iml
-.gradle
-/local.properties
-.DS_Store
-/build
-/captures
-.externalNativeBuild
-.cxx
+# Gradle
+.gradle/
+**/build/
+!gradle/wrapper/gradle-wrapper.jar
+
+# Android
 local.properties
-.idea
+captures/
+*.iml
 
-# Prettier
-node_modules
-package-lock.json
-package.json
+# IDE
+.idea/
+.vscode/
 
-# Kotlin
-.kotlin/sessions
+# OS
+.DS_Store
