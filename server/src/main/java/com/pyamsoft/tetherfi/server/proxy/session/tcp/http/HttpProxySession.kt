@@ -16,6 +16,8 @@
 
 package com.pyamsoft.tetherfi.server.proxy.session.tcp.http
 
+import com.pyamsoft.tetherfi.server.net.connectWithConfiguration
+import com.pyamsoft.tetherfi.server.net.socketTimeout
 import com.pyamsoft.pydroid.core.ThreadEnforcer
 import com.pyamsoft.pydroid.util.ifNotCancellation
 import com.pyamsoft.tetherfi.core.notification.NotificationErrorLauncher
@@ -69,164 +71,138 @@ internal constructor(
         enforcer = enforcer,
     ) {
 
-  override val proxyType = SharedProxy.Type.HTTP
+    override val proxyType = SharedProxy.Type.HTTP
 
-  /**
-   * Given the initial proxy request, connect to the Internet from our device via the connected
-   * socket
-   *
-   * This function must ALWAYS call connection.usingConnection {} or else a socket may potentially
-   * leak
-   */
-  private suspend inline fun <T> connectToInternet(
-      networkBinder: SocketBinder.NetworkBinder,
-      socketCreator: SocketCreator,
-      timeout: ServerSocketTimeout,
-      autoFlush: Boolean,
-      request: HttpProxyRequest,
-      socketTracker: SocketTracker,
-      noinline onError: (Throwable) -> Unit,
-      crossinline block: suspend (ByteReadChannel, ByteWriteChannel) -> T,
-  ): T =
-      socketCreator.create(
-          type = SocketCreator.Type.CLIENT,
-          onError = { onError },
-          onBuild = { builder ->
-            // We don't actually use the socket tls() method here since we are not a TLS server
-            // We do the CONNECT based workaround to handle HTTPS connections
-            val remote =
-                InetSocketAddress(
-                    hostname = request.host,
-                    port = request.port,
-                )
-
-            val socket =
-                builder
-                    .tcp()
-                    .configure {
-                      reuseAddress = true
-                      // As of KTOR-3.0.0, this is not supported and crashes at runtime
-                      // reusePort = true
-                    }
-                    .also { socketTagger.tagSocket() }
-                    // This function uses our custom build of KTOR
-                    // which adds the [onBeforeConnect] hook to allow us
-                    // to use the socket created BEFORE connection starts.
-                    .connectWithConfiguration(
-                        remoteAddress = remote,
-                        configure = {
-                          // By default KTOR does not close sockets until "infinity" is reached.
-                          val duration = timeout.timeoutDuration
-                          if (!duration.isInfinite()) {
-                            socketTimeout = duration.inWholeMilliseconds
-                          }
-                        },
-                        onBeforeConnect = { networkBinder.bindToNetwork(it) },
+    private suspend inline fun <T> connectToInternet(
+        networkBinder: SocketBinder.NetworkBinder,
+        socketCreator: SocketCreator,
+        timeout: ServerSocketTimeout,
+        autoFlush: Boolean,
+        request: HttpProxyRequest,
+        socketTracker: SocketTracker,
+        noinline onError: (Throwable) -> Unit,
+        crossinline block: suspend (ByteReadChannel, ByteWriteChannel) -> T,
+    ): T =
+        socketCreator.create(
+            type = SocketCreator.Type.CLIENT,
+            onError = { onError },
+            onBuild = { builder ->
+                val remote =
+                    InetSocketAddress(
+                        hostname = request.host,
+                        port = request.port,
                     )
 
-            // Track this socket for when we fully shut down
-            socketTracker.track(socket)
+                val socket =
+                    builder
+                        .tcp()
+                        .configure {
+                            reuseAddress = true
+                            // reusePort = true // (no soportado)
+                        }
+                        .also { socketTagger.tagSocket() }
+                        // Compat: sólo 'configure'; nada de onBeforeConnect/onConnected aquí
+                        .connectWithConfiguration(
+                            remote = remote,
+                            configure = {
+                                val duration = timeout.timeoutDuration
+                                if (!duration.isInfinite()) {
+                                    // Desambigúa explícitamente al de TCPClientSocketOptions
+                                    this.socketTimeout = duration.inWholeMilliseconds
+                                }
+                            },
+                        )
 
-            return@create socket.usingConnection(autoFlush = autoFlush) {
-                internetInput,
-                internetOutput ->
-              block(internetInput, internetOutput)
+                // AHORA sí podemos llamar funciones suspend:
+                networkBinder.bindToNetwork(socket)
+
+                // Track para shutdown
+                socketTracker.track(socket)
+
+                return@create socket.usingConnection(autoFlush = autoFlush) {
+                        internetInput, internetOutput ->
+                    block(internetInput, internetOutput)
+                }
+            },
+        )
+
+    private suspend fun handleProxyToInternetError(
+        throwable: Throwable,
+        client: TetherClient,
+        request: HttpProxyRequest,
+        proxyOutput: ByteWriteChannel,
+    ) {
+        throwable.ifNotCancellation {
+            if (throwable is SocketTimeoutException) {
+                warnLog { "Proxy:Internet socket timeout! $request $client" }
+            } else {
+                errorLog(throwable) { "Error during Internet exchange $request $client" }
+                transport.writeProxyOutput(proxyOutput, request, TransportWriteCommand.ERROR)
             }
-          },
-      )
-
-  private suspend fun handleProxyToInternetError(
-      throwable: Throwable,
-      client: TetherClient,
-      request: HttpProxyRequest,
-      proxyOutput: ByteWriteChannel,
-  ) {
-    throwable.ifNotCancellation {
-      // Generally, the Transport should handle SocketTimeoutException itself.
-      // We capture here JUST in case
-      if (throwable is SocketTimeoutException) {
-        warnLog { "Proxy:Internet socket timeout! $request $client" }
-      } else {
-        errorLog(throwable) { "Error during Internet exchange $request $client" }
-        transport.writeProxyOutput(proxyOutput, request, TransportWriteCommand.ERROR)
-      }
+        }
     }
-  }
 
-  override suspend fun proxyToInternet(
-      scope: CoroutineScope,
-      socketCreator: SocketCreator,
-      timeout: ServerSocketTimeout,
-      connectionInfo: BroadcastNetworkStatus.ConnectionInfo.Connected,
-      networkBinder: SocketBinder.NetworkBinder,
-      serverDispatcher: ServerDispatcher,
-      proxyInput: ByteReadChannel,
-      proxyOutput: ByteWriteChannel,
-      proxyConnectionInfo: ProxyConnectionInfo,
-      socketTracker: SocketTracker,
-      client: TetherClient,
-      request: HttpProxyRequest,
-      onReport: suspend (ByteTransferReport) -> Unit,
-  ) {
-    enforcer.assertOffMainThread()
+    override suspend fun proxyToInternet(
+        scope: CoroutineScope,
+        socketCreator: SocketCreator,
+        timeout: ServerSocketTimeout,
+        connectionInfo: BroadcastNetworkStatus.ConnectionInfo.Connected,
+        networkBinder: SocketBinder.NetworkBinder,
+        serverDispatcher: ServerDispatcher,
+        proxyInput: ByteReadChannel,
+        proxyOutput: ByteWriteChannel,
+        proxyConnectionInfo: ProxyConnectionInfo,
+        socketTracker: SocketTracker,
+        client: TetherClient,
+        request: HttpProxyRequest,
+        onReport: suspend (ByteTransferReport) -> Unit,
+    ) {
+        enforcer.assertOffMainThread()
 
-    // Given the request, connect to the Web
-    try {
-      connectToInternet(
-          autoFlush = true,
-          socketCreator = socketCreator,
-          timeout = timeout,
-          networkBinder = networkBinder,
-          socketTracker = socketTracker,
-          request = request,
-          onError = { e ->
-            // This error comes from the SelectorManager launch {} scope,
-            // so everything may be dead. fallback to Dispatchers.IO since we cannot be guaranteed
-            // that
-            // our custom dispatcher pool is around
-            appScope.launch(context = Dispatchers.IO) {
-              // Handle the error by killing the connection
-              handleProxyToInternetError(
-                  throwable = e,
-                  proxyOutput = proxyOutput,
-                  request = request,
-                  client = client,
-              )
-
-              // Also inform the user via error notification
-              // but do NOT shut down the hotspot
-              //
-              // Since this could potentially fire a lot, just update the notification to the latest
-              // one
-              notificationErrorLauncher.showError(e)
-            }
-          },
-          block = { internetInput, internetOutput ->
-            try {
-              // Communicate between the web connection we've made and back to our client device
-              transport.exchangeInternet(
-                  scope = scope,
-                  serverDispatcher = serverDispatcher,
-                  proxyInput = proxyInput,
-                  proxyOutput = proxyOutput,
-                  internetInput = internetInput,
-                  internetOutput = internetOutput,
-                  request = request,
-                  client = client,
-                  onReport = onReport,
-              )
-            } finally {
-              internetOutput.flush()
-            }
-          },
-      )
-    } catch (e: Throwable) {
-      handleProxyToInternetError(
-          throwable = e,
-          proxyOutput = proxyOutput,
-          request = request,
-          client = client,
-      )
+        try {
+            connectToInternet(
+                autoFlush = true,
+                socketCreator = socketCreator,
+                timeout = timeout,
+                networkBinder = networkBinder,
+                socketTracker = socketTracker,
+                request = request,
+                onError = { e ->
+                    appScope.launch(context = Dispatchers.IO) {
+                        handleProxyToInternetError(
+                            throwable = e,
+                            proxyOutput = proxyOutput,
+                            request = request,
+                            client = client,
+                        )
+                        notificationErrorLauncher.showError(e)
+                    }
+                },
+                block = { internetInput, internetOutput ->
+                    try {
+                        transport.exchangeInternet(
+                            scope = scope,
+                            serverDispatcher = serverDispatcher,
+                            proxyInput = proxyInput,
+                            proxyOutput = proxyOutput,
+                            internetInput = internetInput,
+                            internetOutput = internetOutput,
+                            request = request,
+                            client = client,
+                            onReport = onReport,
+                        )
+                    } finally {
+                        internetOutput.flush()
+                    }
+                },
+            )
+        } catch (e: Throwable) {
+            handleProxyToInternetError(
+                throwable = e,
+                proxyOutput = proxyOutput,
+                request = request,
+                client = client,
+            )
+        }
     }
-  }
 }
