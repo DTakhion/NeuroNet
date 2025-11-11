@@ -1,224 +1,318 @@
-TetherFi
---------
+# Bitácora Técnica — Proyecto NeuroNet / TetherFi
+## Resumen técnico – Etapa de configuración del entorno
 
-Share your Android device's Internet connection with other devices without needing Root.
+### 1. Instalación y configuración del entorno Java
+- Se instaló **JDK 17** inicialmente mediante `sdkman`, y posteriormente se actualizó a **JDK 21 (Zulu)** para asegurar compatibilidad con Gradle 9.x y Android Gradle Plugin (AGP 8.x).
+- Se definió el entorno:
+  ```bash
+  export JAVA_HOME="$HOME/.sdkman/candidates/java/21.0.5-zulu"
+  ```
+  y se verificó con `java -version`.
 
-### Get TetherFi
+**Resultado:** entorno Java reconocido por Gradle y Android Studio sin conflictos de versión.
 
-#### Google Play (Google Play APK)
+---
 
-[<img
-src="https://play.google.com/intl/en_us/badges/images/generic/en-play-badge.png"
-alt="Get it on Google Play"
-height="80">](https://play.google.com/store/apps/details?id=com.pyamsoft.tetherfi)
+### 2. Diagnóstico del entorno de build y resolución de catálogos
+- Se ejecutó:
+  ```bash
+  ./gradlew buildEnvironment --no-configuration-cache --refresh-dependencies
+  ```
+  con el objetivo de inspeccionar **repositorios y catálogos de dependencias** (`libs.versions.toml`).
 
-#### FDroid (FDroid APK) (IzzyOnDroid Repository)
+- Durante este paso se identificaron referencias a repositorios **`jitpack.io`**, **`google()`** y **`mavenCentral()`**, pero no se requirió intervención posterior.
 
-[<img
-src="https://gitlab.com/IzzyOnDroid/repo/-/raw/master/assets/IzzyOnDroid.png"
-alt="Get it on IzzyOnDroid"
-height="80">](https://apt.izzysoft.de/fdroid/index/apk/com.pyamsoft.tetherfi)
+**Resultado:** configuración válida de catálogos y fuentes. Sin conflictos de plugin DSL ni dependencias.
 
-#### OpenAPK (FDroid APK)
+---
 
-[<img
-src="https://www.openapk.net/images/openapk-badge.png"
-alt="Get it on OpenAPK"
-height="80">](https://www.openapk.net/tetherfi/com.pyamsoft.tetherfi/)
+### 3. Inspección de dependencias – módulo `:app`
+- Se verificó la estructura de dependencias (sin compilar código):
+  ```bash
+  ./gradlew :app:dependencies --no-configuration-cache
+  ```
+- El proceso fue **BUILD SUCCESSFUL**, confirmando la correcta resolución de librerías AndroidX, Compose y KSP.
 
-#### Github Releases (FDroid APK)
-or get the APK from the
-[Releases Section](https://github.com/pyamsoft/tetherfi/releases/latest).
+**Resultado:** el módulo `:app` fue reconocido por Gradle y todas sus dependencias se resolvieron satisfactoriamente.
 
-### Screenshots
+---
 
-#### Hotspot Status
+### 4. Inspección de dependencias – módulo `:server`
+- Se repitió el proceso en el módulo `:server`:
+  ```bash
+  ./gradlew :server:dependencies --no-configuration-cache
+  ```
+- También **BUILD SUCCESSFUL**, confirmando compatibilidad con dependencias Ktor y Kotlin Coroutines.
 
-##### Status Overview
+**Resultado:** el proyecto multi-módulo (`:app`, `:server`, `:core`, etc.) fue reconocido íntegramente por el sistema de compilación.
 
-[<img
-src="https://raw.githubusercontent.com/pyamsoft/tetherfi/main/art/screens/phone/raw/light-status.png"
-alt="Light Mode: Hotspot Status"
-height="200">](https://raw.githubusercontent.com/pyamsoft/tetherfi/main/art/screens/phone/raw/light-status.png)
-[<img
-src="https://raw.githubusercontent.com/pyamsoft/tetherfi/main/art/screens/phone/raw/dark-status.png"
-alt="Dark Mode: Hotspot Status"
-height="200">](https://raw.githubusercontent.com/pyamsoft/tetherfi/main/art/screens/phone/raw/dark-status.png)
+---
 
-##### Hotspot Network Type
+### Conclusión parcial
+La estructura de repositorios (`settings.gradle.kts`) y catálogos (`libs.versions.toml`) fue validada.  
+El entorno Java y Gradle se estabilizó correctamente, dejando el proyecto listo para compilación (`assembleDebug`) e instalación del `app-debug.apk`.
 
-[<img
-src="https://raw.githubusercontent.com/pyamsoft/tetherfi/main/art/screens/phone/raw/light-transport.png"
-alt="Light Mode: Network Type"
-height="200">](https://raw.githubusercontent.com/pyamsoft/tetherfi/main/art/screens/phone/raw/light-transport.png)
-[<img
-src="https://raw.githubusercontent.com/pyamsoft/tetherfi/main/art/screens/phone/raw/dark-transport.png"
-alt="Dark Mode: Network Type"
-height="200">](https://raw.githubusercontent.com/pyamsoft/tetherfi/main/art/screens/phone/raw/dark-transport.png)
+---
 
-##### Hotspot Transport Type
+### 5. Edición de `libs.versions.toml`
+Se reemplazaron las referencias personalizadas del fork **PYAMSOFT** por dependencias estándar de **Ktor 3.3.1**, manteniendo la coherencia de versión en todas las referencias (`version.ref = "ktor"`).  
+Esto normaliza la resolución de librerías y evita dependencias rotas de un fork privado.
 
-[<img
-src="https://raw.githubusercontent.com/pyamsoft/tetherfi/main/art/screens/phone/raw/light-usb.png"
-alt="Light Mode: USB Mode"
-height="200">](https://raw.githubusercontent.com/pyamsoft/tetherfi/main/art/screens/phone/raw/light-usb.png)
-[<img
-src="https://raw.githubusercontent.com/pyamsoft/tetherfi/main/art/screens/phone/raw/dark-usb.png"
-alt="Dark Mode: USB Mode"
-height="200">](https://raw.githubusercontent.com/pyamsoft/tetherfi/main/art/screens/phone/raw/dark-usb.png)
+**Antes:**
+```toml
+ktor = "3.3.1-PYAMSOFT"
+ktor-network = { group = "io.ktor", name = "ktor-network", version.ref = "ktor" }
+ktor-server-netty = { group = "io.ktor", name = "ktor-server-netty-jvm", version.ref = "ktor" }
+```
 
-#### Hotspot Behavior
+**Después:**
+```toml
+ktor = "3.3.1"
+ktor-network = { module = "io.ktor:ktor-network", version.ref = "ktor" }
+ktor-server-core = { module = "io.ktor:ktor-server-core", version.ref = "ktor" }
+ktor-server-netty = { module = "io.ktor:ktor-server-netty", version.ref = "ktor" }
+```
 
-##### Operation Settings
+**Resultado:** dependencias limpias, repositorios estándar, sin referencias al fork Pyamsoft.
 
-[<img
-src="https://raw.githubusercontent.com/pyamsoft/tetherfi/main/art/screens/phone/raw/light-operation.png"
-alt="Light Mode: Operating Settings"
-height="200">](https://raw.githubusercontent.com/pyamsoft/tetherfi/main/art/screens/phone/raw/light-operation.png)
-[<img
-src="https://raw.githubusercontent.com/pyamsoft/tetherfi/main/art/screens/phone/raw/dark-operation.png"
-alt="Dark Mode: Operating Settings"
-height="200">](https://raw.githubusercontent.com/pyamsoft/tetherfi/main/art/screens/phone/raw/dark-operation.png)
+---
 
-##### Expert Tweaks
+### 6. Limpieza del proyecto
+Se realizó una limpieza completa para regenerar el entorno de build y verificar la integridad del cache de Gradle:
 
-[<img
-src="https://raw.githubusercontent.com/pyamsoft/tetherfi/main/art/screens/phone/raw/light-tweaks.png"
-alt="Light Mode: Behavior Tweaks"
-height="200">](https://raw.githubusercontent.com/pyamsoft/tetherfi/main/art/screens/phone/raw/light-tweaks.png)
-[<img
-src="https://raw.githubusercontent.com/pyamsoft/tetherfi/main/art/screens/phone/raw/dark-tweaks.png"
-alt="Dark Mode: Behavior Tweaks"
-height="200">](https://raw.githubusercontent.com/pyamsoft/tetherfi/main/art/screens/phone/raw/dark-tweaks.png)
+```bash
+./gradlew -Dorg.gradle.java.home="$HOME/.sdkman/candidates/java/current" clean
+```
 
-#### Setup Instructions
+**BUILD SUCCESSFUL**, confirmando entorno consistente y compilador funcional.
 
-##### Generic Proxy Setup Information
+---
 
-[<img
-src="https://raw.githubusercontent.com/pyamsoft/tetherfi/main/art/screens/phone/raw/light-info.png"
-alt="Light Mode: Info Screen"
-height="200">](https://raw.githubusercontent.com/pyamsoft/tetherfi/main/art/screens/phone/raw/light-info.png)
-[<img
-src="https://raw.githubusercontent.com/pyamsoft/tetherfi/main/art/screens/phone/raw/dark-info.png"
-alt="Dark Mode: Info Screen"
-height="200">](https://raw.githubusercontent.com/pyamsoft/tetherfi/main/art/screens/phone/raw/dark-info.png)
-
-#### Manage Connections
-
-##### Hotspot Off
-
-[<img
-src="https://raw.githubusercontent.com/pyamsoft/tetherfi/main/art/screens/phone/raw/light-connection-off.png"
-alt="Light Mode: Connections Screen Off"
-height="200">](https://raw.githubusercontent.com/pyamsoft/tetherfi/main/art/screens/phone/raw/light-connection-off.png)
-[<img
-src="https://raw.githubusercontent.com/pyamsoft/tetherfi/main/art/screens/phone/raw/dark-connection-off.png"
-alt="Dark Mode: Connections Screen Off"
-height="200">](https://raw.githubusercontent.com/pyamsoft/tetherfi/main/art/screens/phone/raw/dark-connection-off.png)
-
-##### Hotspot On
-
-[<img
-src="https://raw.githubusercontent.com/pyamsoft/tetherfi/main/art/screens/phone/raw/light-connection-on.png"
-alt="Light Mode: Connections Screen On"
-height="200">](https://raw.githubusercontent.com/pyamsoft/tetherfi/main/art/screens/phone/raw/light-connection-on.png)
-[<img
-src="https://raw.githubusercontent.com/pyamsoft/tetherfi/main/art/screens/phone/raw/dark-connection-on.png"
-alt="Dark Mode: Connections Screen On"
-height="200">](https://raw.githubusercontent.com/pyamsoft/tetherfi/main/art/screens/phone/raw/dark-connection-on.png)
-
-#### Hotspot Active
-
-##### In-App
-
-[<img
-src="https://raw.githubusercontent.com/pyamsoft/tetherfi/main/art/screens/phone/raw/light-running.png"
-alt="Light Mode: Hotspot On"
-height="200">](https://raw.githubusercontent.com/pyamsoft/tetherfi/main/art/screens/phone/raw/light-running.png)
-[<img
-src="https://raw.githubusercontent.com/pyamsoft/tetherfi/main/art/screens/phone/raw/dark-running.png"
-alt="Dark Mode: Hotspot On"
-height="200">](https://raw.githubusercontent.com/pyamsoft/tetherfi/main/art/screens/phone/raw/dark-running.png)
-
-##### Quick Tile
-
-[<img
-src="https://raw.githubusercontent.com/pyamsoft/tetherfi/main/art/screens/phone/raw/light-tile.png"
-alt="Light Mode: Quick Tile"
-height="200">](https://raw.githubusercontent.com/pyamsoft/tetherfi/main/art/screens/phone/raw/light-tile.png)
-[<img
-src="https://raw.githubusercontent.com/pyamsoft/tetherfi/main/art/screens/phone/raw/dark-tile.png"
-alt="Dark Mode: Quick Tile"
-height="200">](https://raw.githubusercontent.com/pyamsoft/tetherfi/main/art/screens/phone/raw/dark-tile.png)
-
-### What is TetherFi
-
-TetherFi works by creating a Wi-Fi Direct legacy group and an HTTP proxy server. Other
-devices can connect to the broadcasted Wi-Fi network, and connect to the Internet by
-setting the proxy server settings to the server created by TetherFi. You do not need a
-Hotspot data plan to use TetherFi, but the app works best with "unlimited" data plans.
-
-#### TetherFi may be for you if:
-
-- You want to share your Android's Wi-Fi or Cellular Data
-- You have an Unlimited Data and a Hotspot plan from your Carrier, but Hotspot
-  has a data cap
-- You have an Unlimited Data and a Hotspot plan from your Carrier, but Hotspot
-  has throttling
-- You do not have a mobile Hotspot plan
-- You wish to create a LAN between devices
-- Your home router has reached the device connection limit
-
-### How
-
-TetherFi uses a Foreground Service to create a long-running Wi-Fi Direct Network that
-other devices can connect to. Connected devices can exchange network data between each other.
-The user is in full control of this Foreground Service and can explicitly choose when to
-turn it on and off.
-
-TetherFi is still a work in progress and not everything will work. For example, using the
-app to get an open NAT type on consoles is currently not possible. Using TetherFi for certain
-online apps, chat apps, video apps, and gaming apps is currently not possible. Some services
-such as email may be unavailable. General "normal" internet browsing should work fine - however,
-it is dependent on the speed and availability of your Android device's internet connection.
-
-To see a list of apps that are known to not work currently, see the
-[Wiki](https://github.com/pyamsoft/tetherfi/wiki/Known-Not-Working)
-
-### Privacy
-
-TetherFi respects your privacy. TetherFi is open source, and always will be. TetherFi
-will never track you, or sell or share your data. TetherFi offers in-app purchases,
-which you may purchase to support the developer. These purchases are never
-required to use the application or any features.
-
-### Development
-
-TetherFi is developed in the open on GitHub at:
-
-[https://github.com/pyamsoft/tetherfi](https://github.com/pyamsoft/tetherfi)
-
-If you know a few things about Android programming and want to help out with
-development, you can do so by creating issue tickets to squash bugs, and
-proposing feature requests.
-
-## License
-
-Apache 2
+### 7. Detección del problema en el módulo `:server`
+La compilación fallaba por la ausencia de funciones “custom” que el código del módulo `:server` esperaba del fork **PYAMSOFT**, y que no existen en **Ktor vanilla**:
 
 ```
-Copyright 2024 pyamsoft
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-   http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
+connectWithConfiguration()
+bindWithConfiguration()
+socketTimeout()
+remoteAddress()
 ```
+Además de algunas variantes de envío y recepción UDP.
+
+Estos métodos eran *wrappers utilitarios* para simplificar configuración de sockets y conexiones.
+
+---
+
+### 8. Solución aplicada — Compat Shim
+Para destrabar el proceso sin reinstalar el fork, se creó un archivo de compatibilidad local:
+
+**`KtorCompat.kt`**
+- Contiene *extension functions* que emulan las funciones del fork utilizando las APIs públicas de Ktor.
+- Mantiene la firma esperada para no romper el código existente.
+
+**Objetivo:** asegurar compatibilidad binaria temporal y permitir compilación completa del módulo `:server` sin modificar la lógica base.
+
+**Resultado:** compilación estable, sin dependencias externas, y compatibilidad asegurada con Ktor oficial.
+
+---
+
+### Conclusión
+La intervención normalizó las dependencias del proyecto y restauró la compatibilidad del módulo `:server` con Ktor oficial, manteniendo la arquitectura modular original.  
+Se logró continuar el flujo de build sin dependencias del fork Pyamsoft, preparando el entorno para la fase de compilación (`assembleDebug`).
+
+---
+
+### Contexto General
+
+Este parte del documento detalla el proceso completo de refactorización y compatibilización del módulo **`server`** del proyecto **NeuroNet**, cuyo propósito es manejar la capa de proxy TCP/UDP para la aplicación **TetherFi**.  
+El trabajo se realizó a raíz de los errores de compilación generados tras la migración a **Ktor 3.x**, los cuales afectaban funciones críticas como la conexión, el enlace de sockets y la comunicación entre procesos.
+
+---
+
+## Entorno
+
+- macOS + Gradle 9.1 + Kotlin 2.0.21 + AGP 8.7.x
+- JDK 21 (Zulu) configurado mediante SDKMAN
+- Android Studio Jellyfish | Build #AI-241.22218.26.2412.12750108
+
+---
+
+## Problemas Iniciales
+
+Durante la compilación con Gradle se presentaron los siguientes errores recurrentes:
+
+- `Unresolved reference 'connectWithConfiguration'`
+- `Suspension functions can only be called within coroutine body`
+- `Cannot infer type for type parameter 'R'`
+- `Argument type mismatch` en llamadas a `bindWithConfiguration`
+- `onBeforeBind` no reconocido como parámetro válido
+
+Además, las extensiones personalizadas definidas en `KtorCompat.kt` dejaron de funcionar correctamente por los cambios en la API de Ktor.
+
+---
+
+## Archivos Involucrados
+
+| Archivo | Descripción | Estado |
+|----------|--------------|--------|
+| `KtorCompat.kt` | Contiene funciones de compatibilidad (`connectWithConfiguration`, `bindWithConfiguration`, `sendCompat`, `receiveCompat`, `TRY_CALL`) | Refactorizado y estable |
+| `HttpProxySession.kt` | Gestiona la conexión HTTP dentro del servidor proxy | Corregido y validado |
+| `BaseSOCKSImplementation.kt` | Implementación base de comandos SOCKS (CONNECT, BIND, UDP_ASSOCIATE) | Refactorizado y validado |
+| `UDPRelayServer.kt` | Relay de datagramas UDP entre cliente y destino remoto | Refactorizado y validado |
+
+---
+
+## Cambios Técnicos Aplicados
+
+### **1. Compatibilidad con Ktor 3.x**
+- Se reescribieron funciones de compatibilidad en `KtorCompat.kt` con firmas actualizadas.
+- Se añadieron versiones *Compat* para llamadas suspendidas:
+  - `sendCompat()`
+  - `receiveCompat()`
+- Se mantuvo el control de errores mediante `TRY_CALL`.
+
+---
+
+### **2. Refactor de `BaseSOCKSImplementation.kt`**
+- Se encapsularon las llamadas suspendidas (`connectWithConfiguration`) dentro de:
+  ```kotlin
+  runBlocking(Dispatchers.IO) { ... }
+  ```
+  para ejecutar funciones suspendidas en contextos no suspendidos.
+- Se ajustó el uso de `socketTimeout` dentro del bloque `configure`.
+- Se resolvieron problemas de inferencia genérica (`Cannot infer type for 'R'`).
+- Se preservó la lógica original del protocolo SOCKS sin alterar su flujo.
+
+---
+
+### **3. Refactor de `UDPRelayServer.kt`**
+- Eliminado el parámetro obsoleto `onBeforeBind` de `bindWithConfiguration()`.
+- Reemplazadas las llamadas directas por las funciones de compatibilidad:
+  ```kotlin
+  socket.sendCompat()
+  socket.receiveCompat()
+  serverSocket.sendCompat()
+  ```
+- Encapsuladas llamadas suspendidas dentro de bloques `runBlocking`.
+- Conservada la lógica original de:
+  - `LastActivityTimeHolder`
+  - Control de timeout (`ServerSocketTimeout`)
+  - Rate limiting (`enforceBandwidthLimit`)
+  - Reporting periódico (`ByteTransferReport`)
+
+---
+
+### **4. Limpieza y Estabilización Final**
+- Se eliminaron warnings graves y errores de tipo.
+- El módulo `server` logró compilar completamente con:
+  ```bash
+  ./gradlew :server:compileDebugKotlin --no-configuration-cache
+  ```
+
+---
+
+## Conclusión
+
+El módulo **`server`** del proyecto **NeuroNet** fue completamente restaurado y actualizado para operar bajo **Ktor 3.x**, preservando la estructura del proxy SOCKS y el relay UDP.  
+El sistema compila de manera estable, sin pérdida de funcionalidad ni dependencias rotas.
+
+---
+
+### Objetivo final
+
+Compilar el módulo `:app` para generar el **APK de depuración** y **instalarlo** en el emulador Android para pruebas manuales.
+
+---
+
+## 1. Ensamble del APK (assembleDebug)
+Ejecutar desde la **raíz del proyecto**:
+
+```bash
+./gradlew :app:assembleDebug --no-configuration-cache
+```
+
+**Salida esperada:** `BUILD SUCCESSFUL`
+
+### Artefactos generados
+Según los *productFlavors* del proyecto, se generan dos APKs de **debug**:
+
+```
+./app/build/outputs/apk/google/debug/app-google-debug.apk
+./app/build/outputs/apk/fdroid/debug/app-fdroid-debug.apk
+```
+
+- **app-google-debug.apk**; usa dependencias con **Google Play Services**. Recomendado para emuladores con *Google APIs*.
+- **app-fdroid-debug.apk**; *flavor* sin dependencias propietarias (útil en entornos sin Play Services).
+
+**Contenido del APK de debug:**
+- Código Kotlin/Java compilado
+- Recursos (`res/`), `AndroidManifest.xml`, `assets/`
+- Firma **de depuración** (keystore debug), **no** de producción
+- Metadatos de compilación y `android:debuggable="true"`
+
+> Nota: La firma de debug permite instalación e inspección en dispositivos/emuladores internos. Para distribución externa, usar **variant release** firmada.
+
+---
+
+## 2. Emulador de referencia (entorno de prueba)
+- **AVD:** `MeshPoC-API36-arm64`
+- **Android:** 16.0 “Baklava” (**API 36**)
+- **Arquitectura del AVD:** `arm64-v8a`
+- **Google APIs:** habilitadas (recomendado para `app-google-debug.apk`)
+
+> Alternativa sugerida: crear también un emulador **x86_64** (mayor rendimiento en hosts Intel/AMD).
+
+---
+
+## 3. Instalación del APK en el emulador
+
+### Opción; Por ADB (recomendado)
+1. Verifica que el emulador esté **encendido** y visible para ADB:
+   ```bash
+   adb devices
+   # List of devices attached
+   # emulator-5554   device
+   ```
+
+2. Instala el **APK Google** de debug:
+   ```bash
+   adb install -r ./app/build/outputs/apk/google/debug/app-google-debug.apk
+   ```
+
+**Salida esperada:**
+```
+Performing Streamed Install
+Success
+```
+
+> Si el emulador es `arm64-v8a` y hubiera error de ABI, recompila para esa ABI:
+```bash
+./gradlew :app:assembleGoogleDebug -Pandroid.injected.build.abi=arm64-v8a
+adb install -r ./app/build/outputs/apk/google/debug/app-google-debug.apk
+```
+
+---
+
+## 4. Verificación en el emulador
+- Abrir el **cajón de apps** y localizar el ícono de la app (según `applicationId`).
+- Iniciar la app y validar flujo básico de pantallas.
+- Ver **logs** si es necesario:
+  ```bash
+  adb logcat
+  ```
+
+---
+
+## 5. Apagar el emulador (limpieza)
+```bash
+adb -s emulator-5554 emu kill   # apaga el emulador en ejecución (no lo elimina)
+```
+> Para **eliminar** un AVD:
+```bash
+avdmanager delete avd -n MeshPoC-API36-arm64
+```
+
+---
+
+### Resultado final
+APK de debug **generado e instalado** correctamente en el emulador `MeshPoC-API36-arm64` (API 36). Listo para pruebas manuales y validación funcional.
