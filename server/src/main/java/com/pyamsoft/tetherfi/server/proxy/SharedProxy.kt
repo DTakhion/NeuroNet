@@ -1,35 +1,31 @@
-/*
- * Copyright 2025 pyamsoft
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at:
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
 package com.pyamsoft.tetherfi.server.proxy
 
 import com.pyamsoft.tetherfi.server.Server
 import com.pyamsoft.tetherfi.server.broadcast.BroadcastNetworkStatus
 import com.pyamsoft.tetherfi.server.lock.Locker
 import kotlinx.coroutines.flow.Flow
+import javax.net.SocketFactory // <--- [MODIFICACION 1] Import necesario
 
 interface SharedProxy : Server {
 
-  suspend fun start(
-      lock: Locker.Lock,
-      connectionStatus: Flow<BroadcastNetworkStatus.ConnectionInfo>,
-  )
+    /**
+     * Inicia el proxy compartido.
+     * [upstream] es el Factory que enruta el tráfico a la red correcta (Wi-Fi/Celular).
+     */
+    suspend fun start(
+        lock: Locker.Lock,
+        connectionStatus: Flow<BroadcastNetworkStatus.ConnectionInfo>,
+        upstream: SocketFactory, // <--- [MODIFICACION 2] Nuevo parámetro obligatorio
+    )
 
-  enum class Type {
-    HTTP,
-    SOCKS,
-  }
+    enum class Type {
+        HTTP,
+        SOCKS,
+    }
+
+    // [ADVERTENCIA IMPORTANTE]
+    // Si tu archivo original tenía más código aquí abajo (como interfaces
+    // "Factory" o "Runner"), ¡MANTENLO! No lo borres.
+    // Solo modifica la función start() de arriba.
+    // Si no había nada más, entonces este archivo está completo.
 }

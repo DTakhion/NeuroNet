@@ -1,19 +1,3 @@
-/*
- * Copyright 2025 pyamsoft
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at:
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
 package com.pyamsoft.tetherfi.server.proxy.manager.factory
 
 import androidx.annotation.CheckResult
@@ -36,6 +20,7 @@ import com.pyamsoft.tetherfi.server.proxy.session.ProxySession
 import com.pyamsoft.tetherfi.server.proxy.session.tcp.TcpProxyData
 import javax.inject.Inject
 import javax.inject.Named
+import javax.net.SocketFactory // <--- [MODIFICACION 1] Import necesario
 import kotlin.time.Duration.Companion.seconds
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -57,95 +42,111 @@ internal constructor(
     private val serverStopConsumer: EventConsumer<ServerStopRequestEvent>,
 ) : ProxyManager.Factory {
 
-  @CheckResult
-  private fun createTcp(
-      proxyType: SharedProxy.Type,
-      session: ProxySession<TcpProxyData>,
-      info: BroadcastNetworkStatus.ConnectionInfo.Connected,
-      socketCreator: SocketCreator,
-      dispatcher: ServerDispatcher,
-      port: Int,
-  ): ProxyManager {
-    enforcer.assertOffMainThread()
+    @CheckResult
+    private fun createTcp(
+        proxyType: SharedProxy.Type,
+        session: ProxySession<TcpProxyData>,
+        info: BroadcastNetworkStatus.ConnectionInfo.Connected,
+        socketCreator: SocketCreator,
+        dispatcher: ServerDispatcher,
+        port: Int,
+        // [MODIFICACION 2] Recibimos el upstream
+        upstream: SocketFactory,
+    ): ProxyManager {
+        enforcer.assertOffMainThread()
 
-    return TcpProxyManager(
-        appScope = appScope,
-        socketTagger = socketTagger,
-        appEnvironment = appEnvironment,
-        yoloRepeatDelay = 3.seconds,
-        enforcer = enforcer,
-        serverStopConsumer = serverStopConsumer,
-        socketBinder = socketBinder,
-        expertPreferences = expertPreferences,
-        proxyType = proxyType,
-        session = session,
-        hostConnection = info,
-        port = port,
-        serverDispatcher = dispatcher,
-        socketCreator = socketCreator,
-    )
-  }
+        return TcpProxyManager(
+            appScope = appScope,
+            socketTagger = socketTagger,
+            appEnvironment = appEnvironment,
+            yoloRepeatDelay = 3.seconds,
+            enforcer = enforcer,
+            serverStopConsumer = serverStopConsumer,
+            socketBinder = socketBinder,
+            expertPreferences = expertPreferences,
+            proxyType = proxyType,
+            session = session,
+            hostConnection = info,
+            port = port,
+            serverDispatcher = dispatcher,
+            socketCreator = socketCreator,
+            // [MODIFICACION 3] Inyectamos el upstream en el constructor del Manager
+            upstream = upstream,
+        )
+    }
 
-  @CheckResult
-  private suspend fun createHttp(
-      info: BroadcastNetworkStatus.ConnectionInfo.Connected,
-      socketCreator: SocketCreator,
-      dispatcher: ServerDispatcher,
-  ): ProxyManager {
-    enforcer.assertOffMainThread()
+    @CheckResult
+    private suspend fun createHttp(
+        info: BroadcastNetworkStatus.ConnectionInfo.Connected,
+        socketCreator: SocketCreator,
+        dispatcher: ServerDispatcher,
+        // [MODIFICACION 4] Pasamos el upstream
+        upstream: SocketFactory,
+    ): ProxyManager {
+        enforcer.assertOffMainThread()
 
-    val port = proxyPreferences.listenForHttpPortChanges().first()
+        val port = proxyPreferences.listenForHttpPortChanges().first()
 
-    return createTcp(
-        proxyType = SharedProxy.Type.HTTP,
-        session = httpSession,
-        info = info,
-        socketCreator = socketCreator,
-        dispatcher = dispatcher,
-        port = port,
-    )
-  }
+        return createTcp(
+            proxyType = SharedProxy.Type.HTTP,
+            session = httpSession,
+            info = info,
+            socketCreator = socketCreator,
+            dispatcher = dispatcher,
+            port = port,
+            // [MODIFICACION 5] Relevo del upstream
+            upstream = upstream,
+        )
+    }
 
-  @CheckResult
-  private suspend fun createSocks(
-      info: BroadcastNetworkStatus.ConnectionInfo.Connected,
-      socketCreator: SocketCreator,
-      dispatcher: ServerDispatcher,
-  ): ProxyManager {
-    enforcer.assertOffMainThread()
+    @CheckResult
+    private suspend fun createSocks(
+        info: BroadcastNetworkStatus.ConnectionInfo.Connected,
+        socketCreator: SocketCreator,
+        dispatcher: ServerDispatcher,
+        // [MODIFICACION 6] Pasamos el upstream
+        upstream: SocketFactory,
+    ): ProxyManager {
+        enforcer.assertOffMainThread()
 
-    val port = proxyPreferences.listenForSocksPortChanges().first()
+        val port = proxyPreferences.listenForSocksPortChanges().first()
 
-    return createTcp(
-        proxyType = SharedProxy.Type.SOCKS,
-        session = socksSession,
-        info = info,
-        socketCreator = socketCreator,
-        dispatcher = dispatcher,
-        port = port,
-    )
-  }
+        return createTcp(
+            proxyType = SharedProxy.Type.SOCKS,
+            session = socksSession,
+            info = info,
+            socketCreator = socketCreator,
+            dispatcher = dispatcher,
+            port = port,
+            // [MODIFICACION 7] Relevo del upstream
+            upstream = upstream,
+        )
+    }
 
-  override suspend fun create(
-      type: SharedProxy.Type,
-      info: BroadcastNetworkStatus.ConnectionInfo.Connected,
-      socketCreator: SocketCreator,
-      serverDispatcher: ServerDispatcher,
-  ): ProxyManager =
-      withContext(context = Dispatchers.Default) {
-        return@withContext when (type) {
-          SharedProxy.Type.HTTP ->
-              createHttp(
-                  info = info,
-                  socketCreator = socketCreator,
-                  dispatcher = serverDispatcher,
-              )
-          SharedProxy.Type.SOCKS ->
-              createSocks(
-                  info = info,
-                  socketCreator = socketCreator,
-                  dispatcher = serverDispatcher,
-              )
+    // [MODIFICACION 8] Implementamos la interfaz actualizada
+    override suspend fun create(
+        type: SharedProxy.Type,
+        info: BroadcastNetworkStatus.ConnectionInfo.Connected,
+        socketCreator: SocketCreator,
+        serverDispatcher: ServerDispatcher,
+        upstream: SocketFactory, // <--- El nuevo parámetro obligatorio
+    ): ProxyManager =
+        withContext(context = Dispatchers.Default) {
+            return@withContext when (type) {
+                SharedProxy.Type.HTTP ->
+                    createHttp(
+                        info = info,
+                        socketCreator = socketCreator,
+                        dispatcher = serverDispatcher,
+                        upstream = upstream, // <--- Pasamos el valor
+                    )
+                SharedProxy.Type.SOCKS ->
+                    createSocks(
+                        info = info,
+                        socketCreator = socketCreator,
+                        dispatcher = serverDispatcher,
+                        upstream = upstream, // <--- Pasamos el valor
+                    )
+            }
         }
-      }
 }
