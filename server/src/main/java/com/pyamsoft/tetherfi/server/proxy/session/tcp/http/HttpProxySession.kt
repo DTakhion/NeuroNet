@@ -1,19 +1,3 @@
-/*
- * Copyright 2025 pyamsoft
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at:
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
 package com.pyamsoft.tetherfi.server.proxy.session.tcp.http
 
 import com.pyamsoft.tetherfi.server.net.connectWithConfiguration
@@ -45,6 +29,7 @@ import io.ktor.utils.io.ByteWriteChannel
 import javax.inject.Inject
 import javax.inject.Named
 import javax.inject.Singleton
+import javax.net.SocketFactory
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -73,6 +58,10 @@ internal constructor(
 
     override val proxyType = SharedProxy.Type.HTTP
 
+    /**
+     * Versión original que usa Ktor + SocketCreator.
+     * NOTA: el parámetro `upstream` se pasa desde TcpProxySession, pero aquí lo ignoramos.
+     */
     private suspend inline fun <T> connectToInternet(
         networkBinder: SocketBinder.NetworkBinder,
         socketCreator: SocketCreator,
@@ -98,29 +87,30 @@ internal constructor(
                         .tcp()
                         .configure {
                             reuseAddress = true
-                            // reusePort = true // (no soportado)
+                            // reusePort = true // (no soportado en Ktor 3)
                         }
                         .also { socketTagger.tagSocket() }
-                        // Compat: sólo 'configure'; nada de onBeforeConnect/onConnected aquí
                         .connectWithConfiguration(
                             remote = remote,
                             configure = {
                                 val duration = timeout.timeoutDuration
                                 if (!duration.isInfinite()) {
-                                    // Desambigúa explícitamente al de TCPClientSocketOptions
+                                    // Usamos el “socketTimeout” compat de KtorCompat
                                     this.socketTimeout = duration.inWholeMilliseconds
                                 }
                             },
                         )
 
-                // AHORA sí podemos llamar funciones suspend:
+                // Ahora sí podemos llamar suspend:
                 networkBinder.bindToNetwork(socket)
 
                 // Track para shutdown
                 socketTracker.track(socket)
 
                 return@create socket.usingConnection(autoFlush = autoFlush) {
-                        internetInput, internetOutput ->
+                        internetInput,
+                        internetOutput,
+                    ->
                     block(internetInput, internetOutput)
                 }
             },
@@ -142,9 +132,16 @@ internal constructor(
         }
     }
 
+    /**
+     * Implementación que satisface la nueva firma de TcpProxySession.proxyToInternet.
+     *
+     * IMPORTANTE: `upstream` llega desde TcpProxySession, pero en HTTP seguimos apoyándonos
+     * en SocketCreator + Ktor. El selector de red (WiFi/Datos) lo manejamos vía SocketBinder.
+     */
     override suspend fun proxyToInternet(
         scope: CoroutineScope,
         socketCreator: SocketCreator,
+        upstream: SocketFactory, // <-- parámetro requerido por la superclase, aquí no usado
         timeout: ServerSocketTimeout,
         connectionInfo: BroadcastNetworkStatus.ConnectionInfo.Connected,
         networkBinder: SocketBinder.NetworkBinder,

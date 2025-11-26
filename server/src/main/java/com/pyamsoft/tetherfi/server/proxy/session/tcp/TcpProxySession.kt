@@ -5,7 +5,7 @@
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at:
  *
- * http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -38,11 +38,19 @@ import com.pyamsoft.tetherfi.server.proxy.SocketTracker
 import com.pyamsoft.tetherfi.server.proxy.session.ProxySession
 import io.ktor.utils.io.ByteReadChannel
 import io.ktor.utils.io.ByteWriteChannel
-import javax.net.SocketFactory // <--- [MODIFICACION 1] Import necesario
+import javax.net.SocketFactory
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
+/**
+ * Sesión TCP base para HTTP / SOCKS, etc.
+ *
+ * - Parsea la solicitud desde [transport]
+ * - Resuelve el cliente y reglas de bloqueo
+ * - Propaga el [SocketFactory] upstream (red WiFi/Datos)
+ *   hasta [proxyToInternet], que es implementado por las subclases.
+ */
 internal abstract class TcpProxySession<Q : ProxyRequest>
 protected constructor(
     private val transport: TcpSessionTransport<Q>,
@@ -62,7 +70,9 @@ protected constructor(
         enforcer.assertOffMainThread()
 
         // Mark all client connections as seen
-        launch(context = serverDispatcher.sideEffect) { allowedClients.seen(client) }
+        launch(context = serverDispatcher.sideEffect) {
+            allowedClients.seen(client)
+        }
     }
 
     private fun CoroutineScope.handleClientReportSideEffects(
@@ -73,7 +83,9 @@ protected constructor(
         enforcer.assertOffMainThread()
 
         // Track the report for the given client
-        launch(context = serverDispatcher.sideEffect) { allowedClients.reportTransfer(client, report) }
+        launch(context = serverDispatcher.sideEffect) {
+            allowedClients.reportTransfer(client, report)
+        }
     }
 
     @CheckResult
@@ -92,7 +104,7 @@ protected constructor(
             }
         }
 
-        // Retrieve the client (or track if it is it new)
+        // Retrieve the client (or track if it is new)
         val client = clientResolver.ensure(hostNameOrIp)
 
         // If the client is blocked we do not process any input
@@ -107,8 +119,7 @@ protected constructor(
     private suspend fun processRequest(
         scope: CoroutineScope,
         socketCreator: SocketCreator,
-        // [MODIFICACION 2] Agregamos upstream a los argumentos
-        upstream: SocketFactory,
+        upstream: SocketFactory, // Factory que define la red upstream (WiFi/Datos)
         timeout: ServerSocketTimeout,
         connectionInfo: BroadcastNetworkStatus.ConnectionInfo.Connected,
         networkBinder: SocketBinder.NetworkBinder,
@@ -133,8 +144,7 @@ protected constructor(
         proxyToInternet(
             scope = scope,
             socketCreator = socketCreator,
-            // [MODIFICACION 3] Pasamos el upstream a la función abstracta
-            upstream = upstream,
+            upstream = upstream, // Propagamos upstream a la implementación concreta
             timeout = timeout,
             connectionInfo = connectionInfo,
             networkBinder = networkBinder,
@@ -170,10 +180,9 @@ protected constructor(
         val proxyInput = data.proxyInput
         val proxyOutput = data.proxyOutput
         val proxyConnectionInfo = data.proxyConnectionInfo
-        // [MODIFICACION 4] Extraemos el upstream del paquete de datos
-        val upstream = data.upstream
+        val upstream = data.upstream // SocketFactory upstream inyectado desde WifiSharedProxy
 
-        // We use a string parsing to figure out what this HTTP request wants to do
+        // We use a string parsing to figure out what this request wants to do
         val request: Q = transport.parseRequest(proxyInput, proxyOutput)
         if (!request.valid) {
             warnLog { "Could not parse proxy request $request" }
@@ -190,7 +199,6 @@ protected constructor(
         processRequest(
             scope = scope,
             socketCreator = socketCreator,
-            // [MODIFICACION 5] Pasamos el upstream hacia abajo
             upstream = upstream,
             timeout = timeout,
             connectionInfo = hostConnection,
@@ -246,12 +254,18 @@ protected constructor(
             }
         }
 
-    // [MODIFICACION 6] Actualizamos la firma del método abstracto
-    // Esto obligará a las subclases (que implementan la conexión real) a usar el upstream
+    /**
+     * Implementación concreta de la conexión a Internet.
+     *
+     * - [upstream] es el SocketFactory ligado a la red preferida (WiFi / Datos).
+     * - Las subclases (HTTP, SOCKS, etc.) se encargan de:
+     *   - Construir el socket real (usando upstream)
+     *   - Ejecutar el relay de datos (proxyInput <-> internetOutput, etc.).
+     */
     protected abstract suspend fun proxyToInternet(
         scope: CoroutineScope,
         socketCreator: SocketCreator,
-        upstream: SocketFactory, // <--- Nuevo parámetro obligatorio
+        upstream: SocketFactory,
         timeout: ServerSocketTimeout,
         connectionInfo: BroadcastNetworkStatus.ConnectionInfo.Connected,
         networkBinder: SocketBinder.NetworkBinder,

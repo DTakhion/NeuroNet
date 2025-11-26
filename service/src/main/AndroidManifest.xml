@@ -1,4 +1,4 @@
-<?xml version="1.0" encoding="utf-8" ?>
+<?xml version="1.0" encoding="utf-8"?>
 <!--
   ~ Copyright 2025 pyamsoft
   ~
@@ -14,7 +14,17 @@
   ~ See the License for the specific language governing permissions and
   ~ limitations under the License.
   -->
-<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    package="com.pyamsoft.tetherfi.service">
+
   <!-- Keep Device CPU alive -->
   <uses-permission android:name="android.permission.WAKE_LOCK" />
+
+  <!-- Permisos necesarios para funcionamiento de proxy y red -->
+  <uses-permission android:name="android.permission.INTERNET" />
+  <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+
+  <uses-permission android:name="android.permission.CHANGE_NETWORK_STATE" />
+  <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+
 </manifest>

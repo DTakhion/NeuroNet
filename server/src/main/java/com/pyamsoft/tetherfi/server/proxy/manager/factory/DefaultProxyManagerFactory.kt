@@ -20,7 +20,7 @@ import com.pyamsoft.tetherfi.server.proxy.session.ProxySession
 import com.pyamsoft.tetherfi.server.proxy.session.tcp.TcpProxyData
 import javax.inject.Inject
 import javax.inject.Named
-import javax.net.SocketFactory // <--- [MODIFICACION 1] Import necesario
+import javax.net.SocketFactory
 import kotlin.time.Duration.Companion.seconds
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -50,7 +50,6 @@ internal constructor(
         socketCreator: SocketCreator,
         dispatcher: ServerDispatcher,
         port: Int,
-        // [MODIFICACION 2] Recibimos el upstream
         upstream: SocketFactory,
     ): ProxyManager {
         enforcer.assertOffMainThread()
@@ -70,7 +69,6 @@ internal constructor(
             port = port,
             serverDispatcher = dispatcher,
             socketCreator = socketCreator,
-            // [MODIFICACION 3] Inyectamos el upstream en el constructor del Manager
             upstream = upstream,
         )
     }
@@ -80,7 +78,6 @@ internal constructor(
         info: BroadcastNetworkStatus.ConnectionInfo.Connected,
         socketCreator: SocketCreator,
         dispatcher: ServerDispatcher,
-        // [MODIFICACION 4] Pasamos el upstream
         upstream: SocketFactory,
     ): ProxyManager {
         enforcer.assertOffMainThread()
@@ -94,7 +91,6 @@ internal constructor(
             socketCreator = socketCreator,
             dispatcher = dispatcher,
             port = port,
-            // [MODIFICACION 5] Relevo del upstream
             upstream = upstream,
         )
     }
@@ -104,7 +100,6 @@ internal constructor(
         info: BroadcastNetworkStatus.ConnectionInfo.Connected,
         socketCreator: SocketCreator,
         dispatcher: ServerDispatcher,
-        // [MODIFICACION 6] Pasamos el upstream
         upstream: SocketFactory,
     ): ProxyManager {
         enforcer.assertOffMainThread()
@@ -118,18 +113,16 @@ internal constructor(
             socketCreator = socketCreator,
             dispatcher = dispatcher,
             port = port,
-            // [MODIFICACION 7] Relevo del upstream
             upstream = upstream,
         )
     }
 
-    // [MODIFICACION 8] Implementamos la interfaz actualizada
     override suspend fun create(
         type: SharedProxy.Type,
         info: BroadcastNetworkStatus.ConnectionInfo.Connected,
         socketCreator: SocketCreator,
         serverDispatcher: ServerDispatcher,
-        upstream: SocketFactory, // <--- El nuevo parámetro obligatorio
+        upstream: SocketFactory,
     ): ProxyManager =
         withContext(context = Dispatchers.Default) {
             return@withContext when (type) {
@@ -138,14 +131,14 @@ internal constructor(
                         info = info,
                         socketCreator = socketCreator,
                         dispatcher = serverDispatcher,
-                        upstream = upstream, // <--- Pasamos el valor
+                        upstream = upstream,
                     )
                 SharedProxy.Type.SOCKS ->
                     createSocks(
                         info = info,
                         socketCreator = socketCreator,
                         dispatcher = serverDispatcher,
-                        upstream = upstream, // <--- Pasamos el valor
+                        upstream = upstream,
                     )
             }
         }

@@ -9,7 +9,7 @@ import android.os.Build
 import androidx.annotation.CheckResult
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withTimeoutOrNull
-import timber.log.Timber // Asumiendo que el proyecto usa Timber, si no, usa android.util.Log
+import timber.log.Timber
 import javax.inject.Inject
 import javax.inject.Singleton
 import kotlin.coroutines.resume
@@ -17,88 +17,95 @@ import kotlin.coroutines.resume
 @Singleton
 class AndroidUpstreamNetworkSelector @Inject constructor(
     private val context: Context,
-    private val cm: ConnectivityManager
+    private val cm: ConnectivityManager,
 ) : UpstreamNetworkSelector {
 
     // Guardamos referencias a los callbacks para poder desregistrarlos en release()
-    private var wifiCb: ConectivityManager.NetworkCallBack? = null
+    private var wifiCb: ConnectivityManager.NetworkCallback? = null
     private var cellCb: ConnectivityManager.NetworkCallback? = null
 
-    override suspend fun acquire(preferred: UpstreamPref, fallback: UpstreamPref): Network {
+    override suspend fun acquire(
+        preferred: UpstreamPref,
+        fallback: UpstreamPref,
+    ): Network {
         // 1. INTENTO PRINCIPAL
         Timber.d("Solicitando red upstream preferida: $preferred")
 
-        // Usamos runCatching para encapsular errores inesperados
-        val primaryResult = runCatching { tryAcquire(preferred)}
-
-        //Si tuvimos xito y la red no es nula, la retomamos
+        val primaryResult = runCatching { tryAcquire(preferred) }
         val primaryNetwork = primaryResult.getOrNull()
-        if (primaryResult.isSuccess && primaryNetwork != null) {
-            Timber.d("XITO:Redupstreamadquirida($preferred): $primaryNetwork")
-            returnprimaryNetwork
+
+        if (primaryNetwork != null) {
+            Timber.d("ÉXITO: Red upstream adquirida ($preferred): $primaryNetwork")
+            return primaryNetwork
         }
 
         // 2. REPORTE DE FALLO
-        val errror = primaryResult.exceptionOrNull()
-        Timber.w(error,"ADVERTENCIA: Falllaadquisicinde $preferred.Intentando fallback...")
-
-        //3.INTENTO DE FALLBACK(RESPALDO)
-        Timber.d("Intentandoredde respaldo: $fallback")
-        val fallbackResult = runCatching{tryAcquire(fallback)}
-
-        val fallbackNetwork = fallbackResult.getOrNull()
-        if (fallbackNetwork.isSuccess && fallbackNetwork != null){
-            Timber.d("XITO:Redderespaldoadquirida($fallback): $fallbackNetwork")
-            returnfallbackNetwork
+        val error = primaryResult.exceptionOrNull()
+        if (error != null) {
+            Timber.w(error, "ADVERTENCIA: Falla adquisición de $preferred. Intentando fallback...")
+        } else {
+            Timber.w("ADVERTENCIA: No se pudo adquirir $preferred. Intentando fallback...")
         }
 
-        //4.ERROR FATAL
-        //Si llegamos aqui,ambas redes fallaron. Lanzamos excepcin para detener el servicio.
-        val finalMsg = "CRTICO:Nose pudoobtenerconexinaInternet." +
-                "Fall $preferredytambin fall $fallback.Verificaquetengasseal."
-        Timber.e(finalMsg)
+        // 3. INTENTO DE FALLBACK (RESPALDO)
+        Timber.d("Intentando red de respaldo: $fallback")
+        val fallbackResult = runCatching { tryAcquire(fallback) }
+        val fallbackNetwork = fallbackResult.getOrNull()
+
+        if (fallbackNetwork != null) {
+            Timber.d("ÉXITO: Red de respaldo adquirida ($fallback): $fallbackNetwork")
+            return fallbackNetwork
+        }
+
+        // 4. ERROR FATAL
+        val finalMsg =
+            "CRÍTICO: No se pudo obtener conexión a Internet. " +
+                    "Falló $preferred y también falló $fallback. Verifica que tengas señal."
+        fallbackResult.exceptionOrNull()?.let { Timber.e(it, finalMsg) } ?: Timber.e(finalMsg)
         throw IllegalStateException(finalMsg)
     }
 
     /**
      * Lógica interna para solicitar la red Android.
-     * Usa Corrutinas para esperar asincronicamente a que el sistema nos proporcione red.
+     * Usa corrutinas para esperar asincrónicamente a que el sistema nos proporcione red.
      */
     @CheckResult
-    private suspend fun tryAcquire(pref: UpstreamPref) : Network? {
-        // Definamos un timeout de 6 segundos para no dejar al usuario esperado eternsmente
-        return withTimeoutOrNull(6000L) {
+    private suspend fun tryAcquire(pref: UpstreamPref): Network? {
+        // Timeout de 6 segundos para no dejar al usuario esperando eternamente
+        return withTimeoutOrNull(6_000L) {
             suspendCancellableCoroutine { cont ->
 
-                // Construimos el request según lo que pide el PDF [cite: 61-66]
+                // Construimos el request según la preferencia
                 val builder = NetworkRequest.Builder()
                     .addCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)
 
                 when (pref) {
                     UpstreamPref.WIFI -> {
                         builder.addTransportType(NetworkCapabilities.TRANSPORT_WIFI)
-                        //En Android 12+ podemos pedir exclusividad para mejorar rendimiento.
+                        // En Android 12+ podemos pedir ciertas capacidades extra si se requiere
                         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
                             builder.addCapability(NetworkCapabilities.NET_CAPABILITY_NOT_RESTRICTED)
                         }
                     }
-                    UpstreamPref.CELL-> {
+
+                    UpstreamPref.CELL -> {
                         builder.addTransportType(NetworkCapabilities.TRANSPORT_CELLULAR)
                     }
                 }
-                val  request = builder.build()
 
-                //Creamos el callback que recibe la respuesta del sistema [cite:67-71]
-                val  cb = object : ConnectivityManager.NetworkCallBack() {
+                val request = builder.build()
+
+                // Callback que recibe la respuesta del sistema
+                val cb = object : ConnectivityManager.NetworkCallback() {
+
                     override fun onAvailable(network: Network) {
-                        // IMPORTANTE: Verificar si la corrutina sigue activa para evitar crashes
                         if (cont.isActive) {
-                            Timber.d("Red disponibe: $network para preferencia $pref")
+                            Timber.d("Red disponible: $network para preferencia $pref")
                             cont.resume(network)
                         }
                     }
 
-                    override fun  onUnavailable() {
+                    override fun onUnavailable() {
                         if (cont.isActive) {
                             Timber.w("Red no disponible para preferencia $pref")
                             cont.resume(null)
@@ -106,18 +113,17 @@ class AndroidUpstreamNetworkSelector @Inject constructor(
                     }
 
                     override fun onLost(network: Network) {
-                        //Opcional: Manejar perdida de red si fuera necesario en tiempo real
+                        // Opcional: manejar pérdida de red en tiempo real
                         Timber.w("Red perdida: $network")
                     }
                 }
 
                 // Guardamos el callback en la variable de clase correspondiente para limpiarlo luego.
                 if (pref == UpstreamPref.WIFI) {
-                    //Limpiamos el anterior si existe
-                    wifiCb?.let {runCatching{cm.unregisterNetworkCallback(it)}}
+                    wifiCb?.let { runCatching { cm.unregisterNetworkCallback(it) } }
                     wifiCb = cb
                 } else {
-                    cellCb?.let {runCatching{cm.unregisterNetworkCallback(it)}}
+                    cellCb?.let { runCatching { cm.unregisterNetworkCallback(it) } }
                     cellCb = cb
                 }
 
@@ -125,27 +131,26 @@ class AndroidUpstreamNetworkSelector @Inject constructor(
                 Timber.d("Ejecutando requestNetwork para $pref")
                 try {
                     cm.requestNetwork(request, cb)
-                } catch (e:SecurityException) {
+                } catch (e: SecurityException) {
                     Timber.e(e, "Error de permisos al solicitar red")
                     if (cont.isActive) cont.resume(null)
-                } catch (e:Exception) {
+                } catch (e: Exception) {
                     Timber.e(e, "Error desconocido al solicitar red")
                     if (cont.isActive) cont.resume(null)
                 }
 
-                // Si la corrutina se cancela (ej. timeout), limpiamos
+                // Si la corrutina se cancela (ej. timeout), la limpieza fina se hace en release()
                 cont.invokeOnCancellation {
-                    // No desregistremos aqui inmediatamente para permitir reintentos rápidos
-                    // la limpieza se hace en release()
+                    // Podríamos limpiar aquí también, pero de momento
+                    // dejamos la responsabilidad principal a release()
                 }
             }
         }
     }
 
-    override  fun release() {
-        Timber.d("Liverando selectores de red upstream")
+    override fun release() {
+        Timber.d("Liberando selectores de red upstream")
 
-        //Limpieza segura de callbacks [cire: 73-75]
         wifiCb?.let {
             runCatching { cm.unregisterNetworkCallback(it) }
         }

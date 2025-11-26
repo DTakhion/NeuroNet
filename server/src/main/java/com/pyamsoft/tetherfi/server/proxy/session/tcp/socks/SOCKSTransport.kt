@@ -46,102 +46,102 @@ internal constructor(
     private val socks5: SOCKS5Implementation,
 ) : AbstractTcpSessionTransport<SOCKSVersion>() {
 
-  override val proxyType = SharedProxy.Type.SOCKS
+    override val proxyType = SharedProxy.Type.SOCKS
 
-  override suspend fun writeProxyOutput(
-      output: ByteWriteChannel,
-      request: SOCKSVersion,
-      command: TransportWriteCommand,
-  ) =
-      when (request) {
-        SOCKSVersion.Invalid -> {
-          warnLog { "Asked to write proxy output to INVALID SOCKS version: $command" }
+    override suspend fun writeProxyOutput(
+        output: ByteWriteChannel,
+        request: SOCKSVersion,
+        command: TransportWriteCommand,
+    ) =
+        when (request) {
+            SOCKSVersion.Invalid -> {
+                warnLog { "Asked to write proxy output to INVALID SOCKS version: $command" }
+            }
+            SOCKSVersion.SOCKS4 -> {
+                when (command) {
+                    // All the same command for SOCKS4
+                    TransportWriteCommand.INVALID -> socks4.usingResponder(output) { sendRefusal() }
+                    TransportWriteCommand.BLOCK -> socks4.usingResponder(output) { sendRefusal() }
+                    TransportWriteCommand.ERROR -> socks4.usingResponder(output) { sendRefusal() }
+                }
+            }
+            SOCKSVersion.SOCKS5 -> {
+                when (command) {
+                    TransportWriteCommand.INVALID -> socks5.usingResponder(output) { sendRefusal() }
+                    TransportWriteCommand.BLOCK -> socks5.usingResponder(output) { sendRefusal() }
+                    TransportWriteCommand.ERROR -> socks5.usingResponder(output) { sendError() }
+                }
+            }
         }
-        SOCKSVersion.SOCKS4 -> {
-          when (command) {
-            // All the same command for SOCKS4
-            TransportWriteCommand.INVALID -> socks4.usingResponder(output) { sendRefusal() }
-            TransportWriteCommand.BLOCK -> socks4.usingResponder(output) { sendRefusal() }
-            TransportWriteCommand.ERROR -> socks4.usingResponder(output) { sendRefusal() }
-          }
-        }
-        SOCKSVersion.SOCKS5 -> {
-          when (command) {
-            TransportWriteCommand.INVALID -> socks5.usingResponder(output) { sendRefusal() }
-            TransportWriteCommand.BLOCK -> socks5.usingResponder(output) { sendRefusal() }
-            TransportWriteCommand.ERROR -> socks5.usingResponder(output) { sendError() }
-          }
-        }
-      }
 
-  override suspend fun parseRequest(
-      input: ByteReadChannel,
-      output: ByteWriteChannel,
-  ): SOCKSVersion {
-    try {
-      val versionByte = input.readByte()
-      return SOCKSVersion.fromVersion(versionByte)
-    } catch (e: Throwable) {
-      errorLog(e) { "Error reading initial input byte for SOCKS version" }
-      return SOCKSVersion.Invalid
+    override suspend fun parseRequest(
+        input: ByteReadChannel,
+        output: ByteWriteChannel,
+    ): SOCKSVersion {
+        try {
+            val versionByte = input.readByte()
+            return SOCKSVersion.fromVersion(versionByte)
+        } catch (e: Throwable) {
+            errorLog(e) { "Error reading initial input byte for SOCKS version" }
+            return SOCKSVersion.Invalid
+        }
     }
-  }
 
-  suspend fun handleRequest(
-      scope: CoroutineScope,
-      socketCreator: SocketCreator,
-      timeout: ServerSocketTimeout,
-      connectionInfo: BroadcastNetworkStatus.ConnectionInfo.Connected,
-      networkBinder: SocketBinder.NetworkBinder,
-      serverDispatcher: ServerDispatcher,
-      proxyInput: ByteReadChannel,
-      proxyOutput: ByteWriteChannel,
-      proxyConnectionInfo: ProxyConnectionInfo,
-      socketTracker: SocketTracker,
-      client: TetherClient,
-      version: SOCKSVersion,
-      onError: suspend (Throwable) -> Unit,
-      onReport: suspend (ByteTransferReport) -> Unit,
-  ) =
-      withContext(context = serverDispatcher.primary) {
-        when (version) {
-          SOCKSVersion.Invalid -> {
-            warnLog { "Invalid SOCKS version, can't handle this request!" }
-          }
-          SOCKSVersion.SOCKS4 -> {
-            socks4.handleSocksCommand(
-                scope = scope,
-                socketCreator = socketCreator,
-                timeout = timeout,
-                serverDispatcher = serverDispatcher,
-                socketTracker = socketTracker,
-                networkBinder = networkBinder,
-                proxyInput = proxyInput,
-                proxyOutput = proxyOutput,
-                proxyConnectionInfo = proxyConnectionInfo,
-                connectionInfo = connectionInfo,
-                client = client,
-                onError = onError,
-                onReport = onReport,
-            )
-          }
-          SOCKSVersion.SOCKS5 -> {
-            socks5.handleSocksCommand(
-                scope = scope,
-                socketCreator = socketCreator,
-                timeout = timeout,
-                serverDispatcher = serverDispatcher,
-                socketTracker = socketTracker,
-                networkBinder = networkBinder,
-                proxyInput = proxyInput,
-                proxyOutput = proxyOutput,
-                proxyConnectionInfo = proxyConnectionInfo,
-                connectionInfo = connectionInfo,
-                client = client,
-                onError = onError,
-                onReport = onReport,
-            )
-          }
+    suspend fun handleRequest(
+        scope: CoroutineScope,
+        socketCreator: SocketCreator,
+        timeout: ServerSocketTimeout,
+        connectionInfo: BroadcastNetworkStatus.ConnectionInfo.Connected,
+        networkBinder: SocketBinder.NetworkBinder,
+        serverDispatcher: ServerDispatcher,
+        proxyInput: ByteReadChannel,
+        proxyOutput: ByteWriteChannel,
+        proxyConnectionInfo: ProxyConnectionInfo,
+        socketTracker: SocketTracker,
+        client: TetherClient,
+        version: SOCKSVersion,
+        onError: suspend (Throwable) -> Unit,
+        onReport: suspend (ByteTransferReport) -> Unit,
+    ) =
+        withContext(context = serverDispatcher.primary) {
+            when (version) {
+                SOCKSVersion.Invalid -> {
+                    warnLog { "Invalid SOCKS version, can't handle this request!" }
+                }
+                SOCKSVersion.SOCKS4 -> {
+                    socks4.handleSocksCommand(
+                        scope = scope,
+                        socketCreator = socketCreator,
+                        timeout = timeout,
+                        serverDispatcher = serverDispatcher,
+                        socketTracker = socketTracker,
+                        networkBinder = networkBinder,
+                        proxyInput = proxyInput,
+                        proxyOutput = proxyOutput,
+                        proxyConnectionInfo = proxyConnectionInfo,
+                        connectionInfo = connectionInfo,
+                        client = client,
+                        onError = onError,
+                        onReport = onReport,
+                    )
+                }
+                SOCKSVersion.SOCKS5 -> {
+                    socks5.handleSocksCommand(
+                        scope = scope,
+                        socketCreator = socketCreator,
+                        timeout = timeout,
+                        serverDispatcher = serverDispatcher,
+                        socketTracker = socketTracker,
+                        networkBinder = networkBinder,
+                        proxyInput = proxyInput,
+                        proxyOutput = proxyOutput,
+                        proxyConnectionInfo = proxyConnectionInfo,
+                        connectionInfo = connectionInfo,
+                        client = client,
+                        onError = onError,
+                        onReport = onReport,
+                    )
+                }
+            }
         }
-      }
 }
