@@ -13,6 +13,75 @@
 
 ---
 
+# Requisitos de Entorno
+
+Este proyecto requiere un entorno Java moderno y compatible con **Gradle 9.x** y **Android Gradle Plugin 8.x**.
+
+---
+
+## Java Development Kit (JDK 21)
+
+El proyecto debe ser compilado con **JDK 21** (se recomienda Zulu u OpenJDK).
+
+**Cada desarrollador debe configurar su entorno** usando una de las opciones siguientes:
+
+---
+
+## Opción 1 — Configurar `JAVA_HOME` (Recomendada)
+
+### macOS / Linux (bash / zsh)
+
+```bash
+export JAVA_HOME="$HOME/.sdkman/candidates/java/21.0.5-zulu"
+export PATH="$JAVA_HOME/bin:$PATH"
+```
+
+### Windows (PowerShell)
+
+Configurar variable de entorno:
+
+```
+JAVA_HOME = C:\Program Files\Zulu\zulu-21
+```
+
+Gradle usará automáticamente este JDK.
+
+---
+
+## Opción 2 — Configurar el JDK directamente desde Android Studio / IntelliJ
+
+1. Ir a:  
+   **Settings / Preferences -> Build, Execution, Deployment -> Build Tools -> Gradle**
+2. En **"Gradle JDK"**, seleccionar:  
+   **JDK 21**
+
+Esta opción funciona incluso si `JAVA_HOME` no está configurado.
+
+---
+
+## Opción 3 — Configuración local (no versionada) de Gradle
+
+Cada desarrollador puede configurar su JDK localmente:
+
+**Archivo:**
+
+- `~/.gradle/gradle.properties` (macOS/Linux)
+- `C:\Users\TU_USUARIO\.gradle\gradle.properties` (Windows)
+
+**Contenido:**
+
+```properties
+org.gradle.java.home=/ruta/a/tu/jdk21
+```
+
+---
+
+## Importante
+
+El archivo `gradle.properties` del proyecto **ya no incluye ninguna ruta de JDK**, de acuerdo a las buenas prácticas.
+
+---
+
 ### 2. Diagnóstico del entorno de build y resolución de catálogos
 - Se ejecutó:
   ```bash
@@ -631,3 +700,251 @@ Resultado:
 ```bash
 BUILD SUCCESSFUL
 ```
+# Guía rápida de instalación Neuronet
+## Levantar la app en emulador y en teléfono físico (Xiaomi HyperOS / Android 14)
+
+Esta guía resume el flujo **exitoso** que seguimos para:
+
+1. Compilar Neuronet en modo *debug* (flavor `google`).
+2. Probar la app en el **emulador**.
+3. Probar la app en un **teléfono real Xiaomi** sin SIM, copiando el APK e instalándolo manualmente.
+
+---
+
+## 1. Compilar la app (flavor `googleDebug`)
+
+Desde la raíz del proyecto:
+
+```bash
+cd "ruta a la raiz del proyecto"
+
+# Opción A: solo compilar el APK googleDebug
+./gradlew :app:assembleGoogleDebug
+
+# Opción B: intentar compilar + instalar (puede fallar por restricciones del teléfono)
+./gradlew :app:installGoogleDebug
+```
+
+El APK principal que nos interesa queda en:
+
+```text
+app/build/outputs/apk/google/debug/app-google-debug.apk
+```
+
+> Ese archivo es el que usaremos tanto para emulador como para teléfono físico.
+
+---
+
+## 2. Probar Neuronet en el EMULADOR
+
+### 2.1. Listar AVDs disponibles
+
+```bash
+~/Library/Android/sdk/emulator/emulator -list-avds
+```
+
+En nuestro caso apareció:
+
+```text
+MeshPoC-API36-arm64
+```
+
+### 2.2. Levantar el emulador desde terminal
+
+```bash
+~/Library/Android/sdk/emulator/emulator -avd MeshPoC-API36-arm64
+```
+
+También se puede levantar desde **Android Studio**:
+
+- `View → Tool Windows → Device Manager`
+- Elegir `MeshPoC-API36-arm64` (en mi caso) → botón **play**
+
+### 2.3. Instalar el APK en el emulador
+
+Con el emulador ya abierto y conectado por ADB:
+
+```bash
+adb devices
+```
+
+Debería listar algo como:
+
+```text
+emulator-5554   device
+```
+
+Luego instalar el APK:
+
+```bash
+adb install -r app/build/outputs/apk/google/debug/app-google-debug.apk
+```
+
+o, si solo está el emulador conectado:
+
+```bash
+./gradlew :app:installGoogleDebug
+```
+
+> Una vez instalado, la app aparece en el launcher del emulador con el nombre configurado en el proyecto.
+
+---
+
+## 3. Conectar el Xiaomi por ADB inalámbrico
+
+### 3.1. Activar Opciones de desarrollador en el teléfono
+
+En el Xiaomi (HyperOS / Android 14):
+
+1. **Ajustes -> Acerca del teléfono -> Versión de MIUI/HyperOS**
+2. Tocar 7 veces -> “Ahora eres desarrollador”.
+
+Luego:
+
+- **Ajustes -> Ajustes adicionales -> Opciones de desarrollador**
+  - Activar **Depuración USB**
+  - Activar **Depuración inalámbrica**
+
+### 3.2. Emparejar ADB por Wi‑Fi
+
+En el teléfono:
+
+- Ir a **Opciones de desarrollador -> Depuración inalámbrica -> Emparejar por código**.
+
+El teléfono muestra, por ejemplo:
+
+```text
+Código de vinculación Wi‑Fi: 075793
+Dirección IP y puerto:       172.20.10.10:34971
+```
+
+En el computador:
+
+```bash
+adb pair 172.20.10.10:34971
+```
+
+Cuando pida el código:
+
+```text
+Enter pairing code: 075793
+```
+
+Si todo sale bien:
+
+```text
+Successfully paired to 172.20.10.10:34971
+```
+
+### 3.3. Conectar a la dirección de depuración
+
+En la misma pantalla de **Depuración inalámbrica**, el teléfono muestra algo como:
+
+```text
+Dirección de depuración: 172.20.10.10:45443
+```
+
+En el computador:
+
+```bash
+adb connect 172.20.10.10:45443
+```
+
+Verificar:
+
+```bash
+adb devices
+```
+
+Salida esperada:
+
+```text
+List of devices attached
+172.20.10.10:45443   device
+```
+
+> En este punto el Xiaomi aparece también en Android Studio como dispositivo:
+> `Xiaomi 2212ARNC4L API 34`.
+
+---
+
+## 4. Flujo exitoso: copiar e instalar el APK MANUALMENTE en el Xiaomi (sin SIM)
+
+En este teléfono de pruebas algunas opciones de seguridad bloqueaban la instalación
+directa por ADB (`INSTALL_FAILED_USER_RESTRICTED`) por problemas de SIM y por lo tanto, usuario registrado.
+
+El flujo que **funciona sin SIM** es:
+
+### 4.1. Copiar el APK al almacenamiento del teléfono
+
+Desde la raíz del proyecto en la terminal:
+
+```bash
+adb push app/build/outputs/apk/google/debug/app-google-debug.apk   /sdcard/Download/neuronet-google-debug.apk
+```
+
+Esto solo copia el archivo, no intenta instalarlo.
+
+### 4.2. Instalar el APK desde el propio teléfono
+
+En el Xiaomi:
+
+1. Abrir **Archivos / File Manager**.
+2. Ir a **Descargas / Download**.
+3. Buscar `neuronet-google-debug.apk`.
+4. Tocar el archivo.
+
+Si es la primera vez, Android pedirá permiso para:
+
+> “Instalar apps desconocidas desde esta aplicación (Archivos / Files)”
+
+Seguir estos pasos:
+
+- Abrir el enlace a ajustes que ofrece el sistema.
+- Activar **“Permitir desde esta fuente”** para la app de archivos.
+- Volver atrás y tocar de nuevo `neuronet-google-debug.apk`.
+- Pulsar **Instalar**.
+
+La app quedará instalada y visible en el launcher del Xiaomi.
+
+---
+
+## 5. Checklist
+
+1. **Compilar APK (google debug)**
+   ```bash
+   cd "ruta a la raiz del proyecto"
+   ./gradlew :app:assembleGoogleDebug
+   ```
+
+2. **Emulador**
+  - Listar AVDs:
+    ```bash
+    ~/Library/Android/sdk/emulator/emulator -list-avds
+    ```
+  - Levantar:
+    ```bash
+    ~/Library/Android/sdk/emulator/emulator -avd MeshPoC-API36-arm64
+    ```
+  - Instalar en emulador:
+    ```bash
+    adb install -r app/build/outputs/apk/google/debug/app-google-debug.apk
+    ```
+
+3. **Xiaomi por Wi‑Fi (ADB)**
+  - Emparejar:
+    ```bash
+    adb pair 172.20.10.10:34971    # usando el código que muestre el teléfono
+    ```
+  - Conectar:
+    ```bash
+    adb connect 172.20.10.10:45443 # dirección de depuración
+    ```
+
+4. **Flujo exitoso de instalación en el teléfono (sin SIM)**
+  - Copiar APK:
+    ```bash
+    adb push app/build/outputs/apk/google/debug/app-google-debug.apk        /sdcard/Download/neuronet-google-debug.apk
+    ```
+  - En el teléfono: abrir **Archivos -> Descargas -> neuronet-google-debug.apk -> Instalar**  
+    (habilitando “Instalar apps desconocidas” para el gestor de archivos si es necesario).
