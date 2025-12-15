@@ -16,17 +16,26 @@
 
 package com.pyamsoft.tetherfi.server.status
 
+import com.pyamsoft.tetherfi.core.TraceLoggingManager
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.update
+import timber.log.Timber
+import javax.inject.Inject
 
-abstract class BaseStatusBroadcaster protected constructor() : StatusBroadcast {
+abstract class BaseStatusBroadcaster protected constructor(
+  protected val traceLogger: TraceLoggingManager? = null
+) : StatusBroadcast {
 
   private val state = MutableStateFlow<RunningStatus>(RunningStatus.NotRunning)
 
   final override fun set(status: RunningStatus, clearError: Boolean) {
     state.update { old ->
       if (old != status) {
+        // [LOGGING: SYNC-STATE] Trace status transitions for debugging synchronization issues
+        traceLogger?.logWarn("SYNC:StatusBroadcast.set", "Estado anterior: $old → nuevo: $status")
+        Timber.d("[SYNC-STATE] Status transition: $old → $status (clearError=$clearError)")
+        
         if (clearError) {
           return@update status
         } else {

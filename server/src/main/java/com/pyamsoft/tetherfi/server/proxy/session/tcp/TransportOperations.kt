@@ -29,6 +29,7 @@ import kotlinx.coroutines.flow.getAndUpdate
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+import timber.log.Timber
 
 internal suspend inline fun relayData(
     scope: CoroutineScope,
@@ -59,6 +60,7 @@ internal suspend inline fun relayData(
       scope.launch(context = serverDispatcher.sideEffect) {
         while (isActive) {
           delay(5.seconds)
+          Timber.d("[C-RELAY] Reporte: proxy→internet=${proxyToInternetBytes.value}B, internet→proxy=${internetToProxyBytes.value}B")
           sendReport()
         }
       }
@@ -68,6 +70,7 @@ internal suspend inline fun relayData(
     val job =
         scope.launch(context = serverDispatcher.primary) {
           // Send data from the internet back to the proxy in a different thread
+          Timber.d("[C-RELAY] Iniciando internet→proxy para ${client.info.address}")
           talk(
               client = client,
               input = internetInput,
@@ -78,9 +81,11 @@ internal suspend inline fun relayData(
                 }
               },
           )
+          Timber.d("[C-RELAY] Finalizó internet→proxy")
         }
 
     // Send input from the proxy (clients) to the internet on this thread
+    Timber.d("[C-RELAY] Iniciando proxy→internet para ${client.info.address}")
     talk(
         client = client,
         input = proxyInput,
@@ -91,12 +96,16 @@ internal suspend inline fun relayData(
           }
         },
     )
+    Timber.d("[C-RELAY] Finalizó proxy→internet")
 
     // Wait for internet communication to finish
     job.join()
   } finally {
     // After we are done, cancel the periodic report and fire one last report
     reportJob.cancel()
+    val finalP2I = proxyToInternetBytes.getAndUpdate { 0 }
+    val finalI2P = internetToProxyBytes.getAndUpdate { 0 }
+    Timber.d("[C-RELAY] Sesión finalizada: total proxy→internet=$finalP2I B, internet→proxy=$finalI2P B")
     sendReport()
   }
 }

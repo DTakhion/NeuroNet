@@ -21,6 +21,8 @@ import com.pyamsoft.pydroid.bus.EventConsumer
 import com.pyamsoft.pydroid.core.ThreadEnforcer
 import com.pyamsoft.pydroid.util.ifNotCancellation
 import com.pyamsoft.tetherfi.core.AppDevEnvironment
+import com.pyamsoft.tetherfi.core.TraceLoggingManager
+import timber.log.Timber
 import com.pyamsoft.tetherfi.server.ExpertPreferences
 import com.pyamsoft.tetherfi.server.ServerSocketTimeout
 import com.pyamsoft.tetherfi.server.SocketCreator
@@ -71,8 +73,8 @@ internal constructor(
     serverStopConsumer: EventConsumer<ServerStopRequestEvent>,
     enforcer: ThreadEnforcer,
     serverDispatcher: ServerDispatcher,
-    // [MODIFICACION 2] Inyectamos el Factory que elige la red (WiFi/Datos)
     private val upstream: SocketFactory,
+    private val traceLogger: TraceLoggingManager? = null,
 ) :
     BaseProxyManager<ServerSocket>(
         appScope = appScope,
@@ -250,10 +252,11 @@ internal constructor(
                 // but KTOR seems to fix this by just "ignoring" the problem and trying again
                 // so that's what we do in YOLO mode
                 // https://github.com/ktorio/ktor/commit/634ffb3e6ae07e2979af16a42ce274aca1407cf9
-                return server.accept().also {
-                    // We got a socket, yay!
-                    proxyFailCount.value = 0
-                }
+                val connection = server.accept()
+                traceLogger?.logDataFlow('D', "Socket aceptado de cliente: ${connection.remoteAddress}")
+                Timber.d("[D-ACCEPT] Conexión entrante aceptada: ${connection.remoteAddress}")
+                proxyFailCount.value = 0
+                return connection
             } catch (e: IOException) {
                 // If we are in YOLO mode and under the fail count limit, we can swallow the error and
                 // try to accept again.

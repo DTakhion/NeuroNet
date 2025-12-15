@@ -169,7 +169,8 @@ internal class ProxyTileService internal constructor() : TileService() {
   }
 
   override fun onClick() {
-    Timber.d { "Tile Clicked!" }
+    Timber.d { \"Tile Clicked!\" }
+    Timber.d { \"[SYNC:TILE] Usuario hizo clic en tile, acción: TOGGLE\" }
     tileActivityLauncher
         .requireNotNull()
         .launchTileActivity(
@@ -178,18 +179,34 @@ internal class ProxyTileService internal constructor() : TileService() {
   }
 
   override fun onStartListening() {
-    Timber.d { "Tile starts listening!" }
+    Timber.d { \"Tile starts listening!\" }
+    Timber.d { \"[SYNC:TILE] Tile comenzó a escuchar cambios de estado\" }
 
     // Mark tile alive
     tileStatus?.markAlive()
 
     withHandler { handler ->
       when (val status = handler.getOverallStatus()) {
-        is RunningStatus.Error -> handleNetworkErrorState(status)
-        is RunningStatus.NotRunning -> handleNetworkNotRunningState()
-        is RunningStatus.Running -> handleNetworkRunningState()
-        is RunningStatus.Starting -> handleNetworkStartingState()
-        is RunningStatus.Stopping -> handleNetworkStoppingState()
+        is RunningStatus.Error -> {
+          Timber.w { \"[SYNC:TILE] Estado de error: \${status.throwable.message}\" }
+          handleNetworkErrorState(status)
+        }
+        is RunningStatus.NotRunning -> {
+          Timber.d { \"[SYNC:TILE] Servicio no está ejecutándose\" }
+          handleNetworkNotRunningState()
+        }
+        is RunningStatus.Running -> {
+          Timber.d { \"[SYNC:TILE] Servicio está ejecutándose\" }
+          handleNetworkRunningState()
+        }
+        is RunningStatus.Starting -> {
+          Timber.d { \"[SYNC:TILE] Servicio está iniciándose\" }
+          handleNetworkStartingState()
+        }
+        is RunningStatus.Stopping -> {
+          Timber.d { \"[SYNC:TILE] Servicio está deteniéndose\" }
+          handleNetworkStoppingState()
+        }
       }
     }
   }

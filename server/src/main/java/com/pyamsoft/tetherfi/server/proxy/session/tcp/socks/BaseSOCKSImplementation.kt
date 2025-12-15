@@ -103,6 +103,7 @@ protected constructor(
                     connected.use { socket ->
                         val remote = socket.remoteAddress
                         Timber.d { "SOCKS CONNECTED: $remote" }
+                        Timber.d { "[B-CONNECT] Socket conectado a destino remoto: $remote para cliente ${client.info.address}" }
                         try {
                             responder.sendConnectSuccess(
                                 addressType = addressType,
@@ -117,6 +118,7 @@ protected constructor(
 
                         socket.usingConnection(autoFlush = false) { internetInput, internetOutput ->
                             try {
+                                Timber.d { "[C-RELAY] Iniciando relayData para conexión SOCKS a $remote" }
                                 relayData(
                                     scope = scope,
                                     client = client,
@@ -127,6 +129,7 @@ protected constructor(
                                     serverDispatcher = serverDispatcher,
                                     onReport = onReport,
                                 )
+                                Timber.d { "[C-RELAY] RelayData finalizado para $remote" }
                             } finally {
                                 internetOutput.flush()
                             }
