@@ -1,6 +1,87 @@
 # Bitácora Técnica — Proyecto NeuroNet
 ## Etapa de configuración del entorno
 
+---
+
+# Requisitos de Entorno
+
+Este proyecto requiere un entorno Java moderno y compatible con **Gradle 9.x** y **Android Gradle Plugin 8.x**.
+
+## Java Development Kit (JDK 21)
+
+El proyecto debe ser compilado con **JDK 21** (se recomienda Zulu u OpenJDK).
+
+**Cada desarrollador debe configurar su entorno** usando una de las opciones siguientes:
+
+---
+
+## Opción 1 — Configurar `JAVA_HOME` (Recomendada para CI)
+
+### macOS / Linux (bash / zsh)
+
+```bash
+export JAVA_HOME="$HOME/.sdkman/candidates/java/21.0.5-zulu"
+export PATH="$JAVA_HOME/bin:$PATH"
+```
+
+### Windows (PowerShell)
+
+```powershell
+$env:JAVA_HOME = 'C:\Program Files\Zulu\zulu-21'
+$env:Path = $env:JAVA_HOME + '\bin;' + $env:Path
+```
+
+Gradle usará automáticamente este JDK.
+
+---
+
+## Opción 2 — Configuración local (NO versionada) — ✅ RECOMENDADA PARA DESARROLLO
+
+**Esta es la opción más limpia y segura para desarrollo local.**
+
+Crear archivo **no versionado** en tu máquina (no se commitea):
+
+**Archivo:**
+- `~/.gradle/gradle.properties` (macOS/Linux)
+- `C:\Users\<TU_USUARIO>\.gradle\gradle.properties` (Windows)
+
+**Contenido:**
+
+```properties
+org.gradle.java.home=C:/Program Files/Zulu/zulu-21
+```
+
+O en macOS/Linux:
+
+```properties
+org.gradle.java.home=/Users/<username>/.sdkman/candidates/java/21.0.5-zulu
+```
+
+**Ventajas:**
+- El proyecto (`gradle.properties` raíz) **nunca contiene rutas locales** ✅
+- Cada desarrollador tiene su propia configuración
+- Compatible con CI/CD y múltiples entornos
+- No genera conflictos en Git
+
+---
+
+## Opción 3 — Android Studio / IntelliJ IDE
+
+1. Ir a:
+   **Settings / Preferences → Build, Execution, Deployment → Build Tools → Gradle**
+2. En **"Gradle JDK"**, seleccionar:
+   **JDK 21**
+
+Esta opción funciona incluso si `JAVA_HOME` no está configurado.
+
+---
+
+## Importante ⚠️
+
+El archivo `gradle.properties` del proyecto **ya no incluye ninguna ruta de JDK**, de acuerdo a las buenas prácticas. Cada desarrollador configura localmente su ruta usando la **Opción 2** (recomendada).
+
+---
+
 ### 1. Instalación y configuración del entorno Java
 - Se instaló **JDK 17** inicialmente mediante `sdkman`, y posteriormente se actualizó a **JDK 21 (Zulu)** para asegurar compatibilidad con Gradle 9.x y Android Gradle Plugin (AGP 8.x).
 - Se definió el entorno:
