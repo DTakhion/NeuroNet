@@ -37,252 +37,276 @@ import kotlinx.coroutines.cancel
 
 internal class ProxyTileService internal constructor() : TileService() {
 
-  @Inject @JvmField internal var tileHandler: TileHandler? = null
-  @Inject @JvmField internal var tileActivityLauncher: ProxyTileActivityLauncher? = null
-  @Inject @JvmField internal var tileStatus: TileStatus? = null
+    @Inject
+    @JvmField
+    internal var tileHandler: TileHandler? = null
+    @Inject
+    @JvmField
+    internal var tileActivityLauncher: ProxyTileActivityLauncher? = null
+    @Inject
+    @JvmField
+    internal var tileStatus: TileStatus? = null
 
-  private var scope: CoroutineScope? = null
+    private var scope: CoroutineScope? = null
 
-  @CheckResult
-  private fun makeScope(): CoroutineScope {
-    return CoroutineScope(
-        context = SupervisorJob() + Dispatchers.Default + CoroutineName(this::class.java.name),
-    )
-  }
-
-  @CheckResult
-  private fun ensureScope(): CoroutineScope {
-    return (scope ?: makeScope()).also { scope = it }
-  }
-
-  private inline fun withTile(crossinline block: (Tile) -> Unit) {
-    val tile = qsTile
-    if (tile != null) {
-      block(tile)
-
-      // Make sure we call this or nothing actually happens
-      try {
-        tile.updateTile()
-      } catch (e: Throwable) {
-        // Sometimes this just crashes because of an NPE
-        // fun I know.
-        Timber.e(e) { "Unable to update tile :(" }
-      }
-    } else {
-      Timber.w { "Cannot update tile, no QS Tile, try requesting LS update" }
-      updateTile(application)
-    }
-  }
-
-  private fun setTileStatus(status: RunningStatus) {
-    val state: Int
-    val title: String
-    val description: String
-    when (status) {
-      is RunningStatus.Error -> {
-        state = Tile.STATE_INACTIVE
-        title = "ERROR"
-        description = status.throwable.message ?: "An unexpected error occurred"
-      }
-      is RunningStatus.NotRunning -> {
-        state = Tile.STATE_INACTIVE
-        title = getString(R.string.app_name)
-        description = "Click to start Hotspot"
-      }
-      is RunningStatus.Running -> {
-        state = Tile.STATE_ACTIVE
-        title = getString(R.string.app_name)
-        description = "Hotspot Running"
-      }
-      is RunningStatus.Starting -> {
-        state = Tile.STATE_INACTIVE
-        title = getString(R.string.app_name)
-        description = "Starting..."
-      }
-      is RunningStatus.Stopping -> {
-        state = Tile.STATE_ACTIVE
-        title = getString(R.string.app_name)
-        description = "Stopping..."
-      }
+    @CheckResult
+    private fun makeScope(): CoroutineScope {
+        return CoroutineScope(
+            context = SupervisorJob() + Dispatchers.Default + CoroutineName(this::class.java.name),
+        )
     }
 
-    withTile { tile ->
-      tile.state = state
-      tile.label = title
-      tile.contentDescription = description
-
-      if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-        tile.stateDescription = description
-      }
-
-      if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-        tile.subtitle = description
-      }
+    @CheckResult
+    private fun ensureScope(): CoroutineScope {
+        return (scope ?: makeScope()).also { scope = it }
     }
-  }
 
-  private fun handleNetworkErrorState(err: RunningStatus.Error) {
-    setTileStatus(err)
-  }
+    private inline fun withTile(crossinline block: (Tile) -> Unit) {
+        val tile = qsTile
+        if (tile != null) {
+            block(tile)
 
-  private fun handleNetworkNotRunningState() {
-    setTileStatus(RunningStatus.NotRunning)
-  }
+            // Make sure we call this or nothing actually happens
+            try {
+                tile.updateTile()
+            } catch (e: Throwable) {
+                // Sometimes this just crashes because of an NPE
+                // fun I know.
+                Timber.e(e) { "Unable to update tile :(" }
+            }
+        } else {
+            Timber.w { "Cannot update tile, no QS Tile, try requesting LS update" }
+            updateTile(application)
+        }
+    }
 
-  private fun handleNetworkRunningState() {
-    setTileStatus(RunningStatus.Running)
-  }
+    private fun setTileStatus(status: RunningStatus) {
+        val state: Int
+        val title: String
+        val description: String
+        when (status) {
+            is RunningStatus.Error -> {
+                state = Tile.STATE_INACTIVE
+                title = "ERROR"
+                description = status.throwable.message ?: "An unexpected error occurred"
+            }
 
-  private fun handleNetworkStartingState() {
-    setTileStatus(RunningStatus.Starting)
-  }
+            is RunningStatus.NotRunning -> {
+                state = Tile.STATE_INACTIVE
+                title = getString(R.string.app_name)
+                description = "Click to start Hotspot"
+            }
 
-  private fun handleNetworkStoppingState() {
-    setTileStatus(RunningStatus.Stopping)
-  }
+            is RunningStatus.Running -> {
+                state = Tile.STATE_ACTIVE
+                title = getString(R.string.app_name)
+                description = "Hotspot Running"
+            }
 
-  private fun withHandler(block: (TileHandler) -> Unit) {
-    if (tileHandler == null) {
-      // Need to constantly re-bind here because each time this is called, the tile service may have
-      // changed
-      //
-      // We also must inject via our own SubComponent to ensure that Dagger re-creates and
-      // re-injects each time. If we inject directly from the AppComponent, Dagger internally tracks
-      // the injection and does not inject again even though the service lifecycle requires it.
-      Timber.d { "Injecting handler!" }
+            is RunningStatus.Starting -> {
+                state = Tile.STATE_INACTIVE
+                title = getString(R.string.app_name)
+                description = "Starting..."
+            }
 
-      // This can crash if the TileService spins up BEFORE the application class is created
-      // /vitals/crashes/fc7545d4e783dd108d01983e58d70f43/details?days=28&versionCode=53
-      try {
-        ObjectGraph.ApplicationScope.retrieve(this)
-            .plusTileService()
-            .create(
-                service = this,
+            is RunningStatus.Stopping -> {
+                state = Tile.STATE_ACTIVE
+                title = getString(R.string.app_name)
+                description = "Stopping..."
+            }
+        }
+
+        withTile { tile ->
+            tile.state = state
+            tile.label = title
+            tile.contentDescription = description
+
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                tile.stateDescription = description
+            }
+
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                tile.subtitle = description
+            }
+        }
+    }
+
+    private fun handleNetworkErrorState(err: RunningStatus.Error) {
+        setTileStatus(err)
+    }
+
+    private fun handleNetworkNotRunningState() {
+        setTileStatus(RunningStatus.NotRunning)
+    }
+
+    private fun handleNetworkRunningState() {
+        setTileStatus(RunningStatus.Running)
+    }
+
+    private fun handleNetworkStartingState() {
+        setTileStatus(RunningStatus.Starting)
+    }
+
+    private fun handleNetworkStoppingState() {
+        setTileStatus(RunningStatus.Stopping)
+    }
+
+    private fun withHandler(block: (TileHandler) -> Unit) {
+        if (tileHandler == null) {
+            // Need to constantly re-bind here because each time this is called, the tile service may have
+            // changed
+            //
+            // We also must inject via our own SubComponent to ensure that Dagger re-creates and
+            // re-injects each time. If we inject directly from the AppComponent, Dagger internally tracks
+            // the injection and does not inject again even though the service lifecycle requires it.
+            Timber.d { "Injecting handler!" }
+
+            // This can crash if the TileService spins up BEFORE the application class is created
+            // /vitals/crashes/fc7545d4e783dd108d01983e58d70f43/details?days=28&versionCode=53
+            try {
+                ObjectGraph.ApplicationScope.retrieve(this)
+                    .plusTileService()
+                    .create(
+                        service = this,
+                    )
+                    .inject(this)
+            } catch (e: Throwable) {
+                Timber.e(e) { "Failed to inject Tile handler, application not ready!" }
+            }
+        }
+
+        tileHandler?.also { block(it) }
+    }
+
+    override fun onClick() {
+        Timber.d { "Tile Clicked!" }
+        Timber.d { "[SYNC:TILE] Usuario hizo clic en tile, acción: TOGGLE" }
+        tileActivityLauncher
+            .requireNotNull()
+            .launchTileActivity(
+                action = ProxyTileAction.TOGGLE,
             )
-            .inject(this)
-      } catch (e: Throwable) {
-        Timber.e(e) { "Failed to inject Tile handler, application not ready!" }
-      }
     }
 
-    tileHandler?.also { block(it) }
-  }
+    override fun onStartListening() {
+        Timber.d { "Tile starts listening!" }
+        Timber.d { "[SYNC:TILE] Tile comenzó a escuchar cambios de estado" }
 
-  override fun onClick() {
-    Timber.d { \"Tile Clicked!\" }
-    Timber.d { \"[SYNC:TILE] Usuario hizo clic en tile, acción: TOGGLE\" }
-    tileActivityLauncher
-        .requireNotNull()
-        .launchTileActivity(
-            action = ProxyTileAction.TOGGLE,
-        )
-  }
+        // Mark tile alive
+        tileStatus?.markAlive()
 
-  override fun onStartListening() {
-    Timber.d { \"Tile starts listening!\" }
-    Timber.d { \"[SYNC:TILE] Tile comenzó a escuchar cambios de estado\" }
+        withHandler { handler ->
+            when (val status = handler.getOverallStatus()) {
+                is RunningStatus.Error -> {
+                    Timber.w {
+                        "[SYNC:TILE] Estado de error: \${status.throwable.message}"
+                    }
+                    handleNetworkErrorState(status)
+                }
 
-    // Mark tile alive
-    tileStatus?.markAlive()
+                is RunningStatus.NotRunning -> {
+                    Timber.d {
+                        "[SYNC:TILE] Servicio no está ejecutándose"
+                    }
+                    handleNetworkNotRunningState()
+                }
 
-    withHandler { handler ->
-      when (val status = handler.getOverallStatus()) {
-        is RunningStatus.Error -> {
-          Timber.w { \"[SYNC:TILE] Estado de error: \${status.throwable.message}\" }
-          handleNetworkErrorState(status)
+                is RunningStatus.Running -> {
+                    Timber.d {
+                        "[SYNC:TILE] Servicio está ejecutándose"
+                    }
+                    handleNetworkRunningState()
+                }
+
+                is RunningStatus.Starting -> {
+                    Timber.d {
+                        "[SYNC:TILE] Servicio está iniciándose"
+                    }
+                    handleNetworkStartingState()
+                }
+
+                is RunningStatus.Stopping -> {
+                    Timber.d {
+                        "[SYNC:TILE] Servicio está deteniéndose"
+                    }
+                    handleNetworkStoppingState()
+                }
+            }
         }
-        is RunningStatus.NotRunning -> {
-          Timber.d { \"[SYNC:TILE] Servicio no está ejecutándose\" }
-          handleNetworkNotRunningState()
-        }
-        is RunningStatus.Running -> {
-          Timber.d { \"[SYNC:TILE] Servicio está ejecutándose\" }
-          handleNetworkRunningState()
-        }
-        is RunningStatus.Starting -> {
-          Timber.d { \"[SYNC:TILE] Servicio está iniciándose\" }
-          handleNetworkStartingState()
-        }
-        is RunningStatus.Stopping -> {
-          Timber.d { \"[SYNC:TILE] Servicio está deteniéndose\" }
-          handleNetworkStoppingState()
-        }
-      }
     }
-  }
 
-  override fun onTileAdded() {
-    super.onTileAdded()
+    override fun onTileAdded() {
+        super.onTileAdded()
 
-    Timber.d { "Tile added!" }
+        Timber.d { "Tile added!" }
 
-    // Mark tile alive
-    tileStatus?.markAlive()
-  }
-
-  override fun onTileRemoved() {
-    super.onTileRemoved()
-
-    Timber.d { "Tile removed!" }
-
-    // Mark tile destroyed
-    tileStatus?.markDead()
-  }
-
-  override fun onCreate() {
-    super.onCreate()
-
-    Timber.d { "Tile created!" }
-
-    // Mark tile alive
-    tileStatus?.markAlive()
-
-    withHandler { handler ->
-      handler.bind(
-          scope = ensureScope(),
-          onNetworkError = { err -> handleNetworkErrorState(err) },
-          onNetworkNotRunning = { handleNetworkNotRunningState() },
-          onNetworkRunning = { handleNetworkRunningState() },
-          onNetworkStarting = { handleNetworkStartingState() },
-          onNetworkStopping = { handleNetworkStoppingState() },
-      )
+        // Mark tile alive
+        tileStatus?.markAlive()
     }
-  }
 
-  override fun onDestroy() {
-    super.onDestroy()
+    override fun onTileRemoved() {
+        super.onTileRemoved()
 
-    Timber.d { "Tile destroyed!" }
+        Timber.d { "Tile removed!" }
 
-    // Cancel everything because this scope is dead
-    scope?.cancel()
-
-    scope = null
-    tileHandler = null
-    tileActivityLauncher = null
-    tileStatus = null
-  }
-
-  companion object {
-
-    @JvmStatic
-    fun updateTile(context: Context) {
-      val appContext = context.applicationContext
-      val component =
-          ComponentName(
-              appContext,
-              ProxyTileService::class.java,
-          )
-
-      try {
-        requestListeningState(
-            appContext,
-            component,
-        )
-      } catch (e: Throwable) {
-        // https://github.com/pyamsoft/tetherfi/issues/229
-        Timber.e(e) { "Error trying to update Tile state. Android OS error?" }
-      }
+        // Mark tile destroyed
+        tileStatus?.markDead()
     }
-  }
+
+    override fun onCreate() {
+        super.onCreate()
+
+        Timber.d { "Tile created!" }
+
+        // Mark tile alive
+        tileStatus?.markAlive()
+
+        withHandler { handler ->
+            handler.bind(
+                scope = ensureScope(),
+                onNetworkError = { err -> handleNetworkErrorState(err) },
+                onNetworkNotRunning = { handleNetworkNotRunningState() },
+                onNetworkRunning = { handleNetworkRunningState() },
+                onNetworkStarting = { handleNetworkStartingState() },
+                onNetworkStopping = { handleNetworkStoppingState() },
+            )
+        }
+    }
+
+    override fun onDestroy() {
+        super.onDestroy()
+
+        Timber.d { "Tile destroyed!" }
+
+        // Cancel everything because this scope is dead
+        scope?.cancel()
+
+        scope = null
+        tileHandler = null
+        tileActivityLauncher = null
+        tileStatus = null
+    }
+
+    companion object {
+
+        @JvmStatic
+        fun updateTile(context: Context) {
+            val appContext = context.applicationContext
+            val component =
+                ComponentName(
+                    appContext,
+                    ProxyTileService::class.java,
+                )
+
+            try {
+                requestListeningState(
+                    appContext,
+                    component,
+                )
+            } catch (e: Throwable) {
+                // https://github.com/pyamsoft/tetherfi/issues/229
+                Timber.e(e) { "Error trying to update Tile state. Android OS error?" }
+            }
+        }
+    }
 }
