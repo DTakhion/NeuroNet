@@ -16,6 +16,7 @@
 
 package com.pyamsoft.tetherfi.core
 
+import com.pyamsoft.tetherfi.core.BuildConfig
 import java.util.UUID
 import java.util.concurrent.atomic.AtomicLong
 import javax.inject.Inject

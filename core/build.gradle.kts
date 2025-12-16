@@ -46,7 +46,7 @@ android {
 
   kotlin { compilerOptions { jvmTarget = JvmTarget.JVM_21 } }
 
-  buildFeatures { buildConfig = false }
+  buildFeatures { buildConfig = true }
 }
 
 dependencies {
