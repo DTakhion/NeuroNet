@@ -70,7 +70,7 @@ internal suspend inline fun relayData(
     val job =
         scope.launch(context = serverDispatcher.primary) {
           // Send data from the internet back to the proxy in a different thread
-          Timber.d("[C-RELAY] Iniciando internet→proxy para ${client.info.address}")
+          Timber.d("[C-RELAY] Iniciando internet→proxy para ${client.nickName}")
           talk(
               client = client,
               input = internetInput,
@@ -85,7 +85,7 @@ internal suspend inline fun relayData(
         }
 
     // Send input from the proxy (clients) to the internet on this thread
-    Timber.d("[C-RELAY] Iniciando proxy→internet para ${client.info.address}")
+    Timber.d("[C-RELAY] Iniciando proxy→internet para ${client.nickName}")
     talk(
         client = client,
         input = proxyInput,

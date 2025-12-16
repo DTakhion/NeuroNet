@@ -103,7 +103,7 @@ protected constructor(
                     connected.use { socket ->
                         val remote = socket.remoteAddress
                         Timber.d { "SOCKS CONNECTED: $remote" }
-                        Timber.d { "[B-CONNECT] Socket conectado a destino remoto: $remote para cliente ${client.info.address}" }
+                        Timber.d { "[B-CONNECT] Socket conectado a destino remoto: $remote para cliente ${client.nickName}" }
                         try {
                             responder.sendConnectSuccess(
                                 addressType = addressType,
