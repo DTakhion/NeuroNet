@@ -21,6 +21,9 @@ import java.util.UUID
 import java.util.concurrent.atomic.AtomicLong
 import javax.inject.Inject
 import javax.inject.Singleton
+import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.asSharedFlow
+import kotlinx.coroutines.flow.SharedFlow
 import timber.log.Timber
 
 /**
@@ -44,6 +47,10 @@ constructor() {
 
   // Global flag to control verbose logging (set via BuildConfig or preferences)
   var isVerboseLoggingEnabled: Boolean = false
+
+  // In-app observable stream for real-time UI display of traces (MVP)
+  private val _traceStream: MutableSharedFlow<String> = MutableSharedFlow(extraBufferCapacity = 200)
+  val traceStream: SharedFlow<String> = _traceStream.asSharedFlow()
 
   /**
    * Generates a unique trace ID combining session UUID + counter.
@@ -74,7 +81,14 @@ constructor() {
   fun logDebug(stage: String, message: String) {
     if (BuildConfig.DEBUG || isVerboseLoggingEnabled) {
       val traceId = nextTraceId()
-      Timber.d("[$traceId] [$stage] $message")
+      val formatted = "[$traceId] [$stage] $message"
+      Timber.d(formatted)
+      // Emit to in-app trace stream (best-effort)
+      try {
+        _traceStream.tryEmit(formatted)
+      } catch (_: Throwable) {
+        // ignore
+      }
     }
   }
 
@@ -84,11 +98,15 @@ constructor() {
    */
   fun logWarn(stage: String, message: String, throwable: Throwable? = null) {
     val traceId = nextTraceId()
+    val formatted = "[$traceId] [$stage] $message"
     if (throwable != null) {
-      Timber.w(throwable, "[$traceId] [$stage] $message")
+      Timber.w(throwable, formatted)
     } else {
-      Timber.w("[$traceId] [$stage] $message")
+      Timber.w(formatted)
     }
+    try {
+      _traceStream.tryEmit(formatted)
+    } catch (_: Throwable) {}
   }
 
   /**
@@ -97,11 +115,15 @@ constructor() {
    */
   fun logError(stage: String, message: String, throwable: Throwable? = null) {
     val traceId = nextTraceId()
+    val formatted = "[$traceId] [$stage] $message"
     if (throwable != null) {
-      Timber.e(throwable, "[$traceId] [$stage] $message")
+      Timber.e(throwable, formatted)
     } else {
-      Timber.e("[$traceId] [$stage] $message")
+      Timber.e(formatted)
     }
+    try {
+      _traceStream.tryEmit(formatted)
+    } catch (_: Throwable) {}
   }
 
   /**
@@ -115,6 +137,15 @@ constructor() {
   fun logDataFlow(stage: Char, message: String, bytes: Long? = null) {
     val suffix = if (bytes != null) " (${bytes} bytes)" else ""
     logDebug("D-C-B-A:$stage", message + suffix)
+  }
+
+  /**
+   * Helper to emit arbitrary lines to the trace stream (UI clients can call this).
+   */
+  fun emitUiLine(line: String) {
+    try {
+      _traceStream.tryEmit(line)
+    } catch (_: Throwable) {}
   }
 }
 
