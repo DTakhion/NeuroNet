@@ -7,9 +7,8 @@ import android.view.ViewGroup
 import androidx.fragment.app.Fragment
 import androidx.lifecycle.lifecycleScope
 import androidx.recyclerview.widget.LinearLayoutManager
-import com.pyamsoft.tetherfi.R
 import com.pyamsoft.tetherfi.core.TraceLoggingManager
-import kotlinx.android.synthetic.main.fragment_trace_console.*
+import com.pyamsoft.tetherfi.databinding.FragmentTraceConsoleBinding
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
 import javax.inject.Inject
@@ -19,27 +18,35 @@ class TraceConsoleFragment : Fragment() {
   @Inject lateinit var traceLoggingManager: TraceLoggingManager
 
   private val adapter = TraceAdapter()
+  private var binding: FragmentTraceConsoleBinding? = null
 
   override fun onCreateView(
     inflater: LayoutInflater,
     container: ViewGroup?,
     savedInstanceState: Bundle?
   ): View? {
-    return inflater.inflate(R.layout.fragment_trace_console, container, false)
+    binding = FragmentTraceConsoleBinding.inflate(inflater, container, false)
+    return binding?.root
   }
 
   override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
     super.onViewCreated(view, savedInstanceState)
 
-    recycler_trace.layoutManager = LinearLayoutManager(requireContext())
-    recycler_trace.adapter = adapter
+    val b = binding ?: return
+    b.recyclerTrace.layoutManager = LinearLayoutManager(requireContext())
+    b.recyclerTrace.adapter = adapter
 
     // Collect trace stream
     lifecycleScope.launch {
       traceLoggingManager.traceStream.collectLatest { line ->
         adapter.addLine(line)
-        recycler_trace.scrollToPosition(adapter.itemCount - 1)
+        b.recyclerTrace.scrollToPosition(adapter.itemCount - 1)
       }
     }
+  }
+
+  override fun onDestroyView() {
+    super.onDestroyView()
+    binding = null
   }
 }

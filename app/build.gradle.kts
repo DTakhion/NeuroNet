@@ -127,6 +127,7 @@ android {
   buildFeatures {
     buildConfig = true
     compose = true
+    viewBinding = true
   }
 
   // Fixes this error message
