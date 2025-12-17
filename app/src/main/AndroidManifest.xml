@@ -140,5 +140,11 @@
       android:theme="@style/Theme.TetherFi.Tile"
       android:windowSoftInputMode="adjustPan"
     />
+    <activity
+      android:name=".trace.TraceConsoleActivity"
+      android:exported="false"
+      android:label="Trace Console"
+      android:theme="@style/Theme.TetherFi"
+    />
   </application>
 </manifest>
