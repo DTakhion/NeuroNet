@@ -128,6 +128,11 @@ fun MainContent(
             serverViewState = state,
         )
       }
+      MainView.TRACE -> {
+        com.pyamsoft.tetherfi.trace.TraceConsoleEntry(
+            modifier = Modifier.fillMaxSize(),
+        )
+      }
     }
   }
 }
