@@ -13,15 +13,26 @@ fun TraceConsoleEntry(
   AndroidView(
       modifier = modifier,
       factory = { context ->
-        FragmentContainerView(context).apply {
-          id = android.R.id.custom
-          val fragmentManager = (context as? androidx.activity.ComponentActivity)?.supportFragmentManager
-          if (fragmentManager != null && childFragmentManager.fragments.isEmpty()) {
-            childFragmentManager.beginTransaction()
-                .replace(android.R.id.custom, TraceConsoleFragment())
-                .commit()
+        // Create a container view for the Fragment
+        val container = FragmentContainerView(context).apply {
+          // Use a generated id to avoid collisions
+          id = generateViewId()
+        }
+
+        // Safely obtain the activity's FragmentManager and add the fragment once
+        val activity = context as? androidx.activity.ComponentActivity
+        val fragmentManager = activity?.supportFragmentManager
+        if (fragmentManager != null) {
+          // Only add the fragment if this container doesn't already have one
+          val existing = fragmentManager.findFragmentById(container.id)
+          if (existing == null) {
+            fragmentManager.beginTransaction()
+                .replace(container.id, TraceConsoleFragment())
+                .commitNowAllowingStateLoss()
           }
         }
+
+        container
       }
   )
 }
