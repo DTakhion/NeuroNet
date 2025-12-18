@@ -27,7 +27,7 @@ export PATH="$JAVA_HOME/bin:$PATH"
 ### Windows (PowerShell)
 
 ```powershell
-$env:JAVA_HOME = 'C:\Program Files\Zulu\zulu-21'
+$env:JAVA_HOME = 'C:\Program Files\Zulu\zulu-21.0.5-zulu'
 $env:Path = $env:JAVA_HOME + '\bin;' + $env:Path
 ```
 
@@ -48,7 +48,7 @@ Crear archivo **no versionado** en tu máquina (no se commitea):
 **Contenido:**
 
 ```properties
-org.gradle.java.home=C:/Program Files/Zulu/zulu-21
+org.gradle.java.home=C:/Program Files/Zulu/zulu-21.0.5-zulu
 ```
 
 O en macOS/Linux:
