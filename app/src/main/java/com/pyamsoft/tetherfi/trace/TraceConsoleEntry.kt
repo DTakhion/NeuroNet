@@ -1,6 +1,6 @@
 package com.pyamsoft.tetherfi.trace
 
-import android.os.Bundle
+import android.view.View
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.viewinterop.AndroidView
@@ -16,7 +16,7 @@ fun TraceConsoleEntry(
         // Create a container view for the Fragment
         val container = FragmentContainerView(context).apply {
           // Use a generated id to avoid collisions
-          id = generateViewId()
+          id = View.generateViewId()
         }
 
         // Safely obtain the activity's FragmentManager and add the fragment once
