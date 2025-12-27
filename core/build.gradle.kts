@@ -76,4 +76,9 @@ dependencies {
   androidTestImplementation(libs.androidx.testRunner)
   androidTestImplementation(libs.kotlin.test)
   androidTestImplementation(libs.kotlinx.coroutines.test)
+
+  //intento de arreglo para despliegue (27/12/2025)
+    implementation("androidx.fragment:fragment-ktx:1.6.2")
+    implementation("androidx.appcompat:appcompat:1.6.1")
+
 }

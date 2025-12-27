@@ -5,6 +5,8 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.fragment.app.FragmentContainerView
+import androidx.fragment.app.FragmentActivity
+
 
 @Composable
 fun TraceConsoleEntry(
@@ -20,7 +22,7 @@ fun TraceConsoleEntry(
         }
 
         // Safely obtain the activity's FragmentManager and add the fragment once
-        val activity = context as? androidx.activity.ComponentActivity
+        val activity = context as? FragmentActivity //intento de arreglo para despliegue (27/12/2025)
         val fragmentManager = activity?.supportFragmentManager
         if (fragmentManager != null) {
           // Only add the fragment if this container doesn't already have one
