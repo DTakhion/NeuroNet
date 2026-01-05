@@ -7,6 +7,7 @@ import android.net.NetworkCapabilities
 import android.net.NetworkRequest
 import android.os.Build
 import androidx.annotation.CheckResult
+import com.pyamsoft.tetherfi.core.traceLoggingManager
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withTimeoutOrNull
 import timber.log.Timber
@@ -20,6 +21,9 @@ class AndroidUpstreamNetworkSelector @Inject constructor(
     private val cm: ConnectivityManager,
 ) : UpstreamNetworkSelector {
 
+    // Use TraceLogging to surface upstream selection in the in-app console
+    private val traceLogger = traceLoggingManager
+
     // Guardamos referencias a los callbacks para poder desregistrarlos en release()
     private var wifiCb: ConnectivityManager.NetworkCallback? = null
     private var cellCb: ConnectivityManager.NetworkCallback? = null
@@ -30,6 +34,7 @@ class AndroidUpstreamNetworkSelector @Inject constructor(
     ): Network {
         // 1. INTENTO PRINCIPAL
         Timber.d("Solicitando red upstream preferida: $preferred")
+        traceLogger.logDebug("UPSTREAM", "Request preferida=$preferred, fallback=$fallback")
 
         val primaryResult = runCatching { tryAcquire(preferred) }
         val primaryNetwork = primaryResult.getOrNull()
@@ -49,6 +54,7 @@ class AndroidUpstreamNetworkSelector @Inject constructor(
 
         // 3. INTENTO DE FALLBACK (RESPALDO)
         Timber.d("Intentando red de respaldo: $fallback")
+        traceLogger.logWarn("UPSTREAM", "Fallback a $fallback tras fallo en $preferred")
         val fallbackResult = runCatching { tryAcquire(fallback) }
         val fallbackNetwork = fallbackResult.getOrNull()
 
@@ -62,6 +68,7 @@ class AndroidUpstreamNetworkSelector @Inject constructor(
             "CRÍTICO: No se pudo obtener conexión a Internet. " +
                     "Falló $preferred y también falló $fallback. Verifica que tengas señal."
         fallbackResult.exceptionOrNull()?.let { Timber.e(it, finalMsg) } ?: Timber.e(finalMsg)
+        traceLogger.logError("UPSTREAM", finalMsg)
         throw IllegalStateException(finalMsg)
     }
 
@@ -101,6 +108,7 @@ class AndroidUpstreamNetworkSelector @Inject constructor(
                     override fun onAvailable(network: Network) {
                         if (cont.isActive) {
                             Timber.d("Red disponible: $network para preferencia $pref")
+                            traceLogger.logDebug("UPSTREAM", "Disponible $pref -> $network")
                             cont.resume(network)
                         }
                     }
@@ -108,6 +116,7 @@ class AndroidUpstreamNetworkSelector @Inject constructor(
                     override fun onUnavailable() {
                         if (cont.isActive) {
                             Timber.w("Red no disponible para preferencia $pref")
+                            traceLogger.logWarn("UPSTREAM", "No disponible $pref")
                             cont.resume(null)
                         }
                     }
@@ -115,6 +124,7 @@ class AndroidUpstreamNetworkSelector @Inject constructor(
                     override fun onLost(network: Network) {
                         // Opcional: manejar pérdida de red en tiempo real
                         Timber.w("Red perdida: $network")
+                        traceLogger.logWarn("UPSTREAM", "Perdida $pref -> $network")
                     }
                 }
 
@@ -129,6 +139,7 @@ class AndroidUpstreamNetworkSelector @Inject constructor(
 
                 // Solicitamos red al sistema
                 Timber.d("Ejecutando requestNetwork para $pref")
+                traceLogger.logDebug("UPSTREAM", "requestNetwork $pref")
                 try {
                     cm.requestNetwork(request, cb)
                 } catch (e: SecurityException) {
