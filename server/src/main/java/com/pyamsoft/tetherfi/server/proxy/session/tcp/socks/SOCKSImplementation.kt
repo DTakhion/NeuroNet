@@ -25,6 +25,7 @@ import com.pyamsoft.tetherfi.server.network.SocketBinder
 import com.pyamsoft.tetherfi.server.proxy.ProxyConnectionInfo
 import com.pyamsoft.tetherfi.server.proxy.ServerDispatcher
 import com.pyamsoft.tetherfi.server.proxy.SocketTracker
+import com.pyamsoft.tetherfi.server.proxy.UpstreamProxyConfig
 import io.ktor.utils.io.ByteReadChannel
 import io.ktor.utils.io.ByteWriteChannel
 import kotlinx.coroutines.CoroutineScope

@@ -24,6 +24,7 @@ import com.pyamsoft.tetherfi.core.AppDevEnvironment
 import com.pyamsoft.tetherfi.core.TraceLoggingManager
 import timber.log.Timber
 import com.pyamsoft.tetherfi.server.ExpertPreferences
+import com.pyamsoft.tetherfi.server.ProxyPreferences
 import com.pyamsoft.tetherfi.server.ServerSocketTimeout
 import com.pyamsoft.tetherfi.server.SocketCreator
 import com.pyamsoft.tetherfi.server.broadcast.BroadcastNetworkStatus
@@ -35,6 +36,7 @@ import com.pyamsoft.tetherfi.server.proxy.ServerDispatcher
 import com.pyamsoft.tetherfi.server.proxy.SharedProxy
 import com.pyamsoft.tetherfi.server.proxy.SocketTagger
 import com.pyamsoft.tetherfi.server.proxy.SocketTracker
+import com.pyamsoft.tetherfi.server.proxy.UpstreamProxyConfig
 import com.pyamsoft.tetherfi.server.proxy.session.ProxySession
 import com.pyamsoft.tetherfi.server.proxy.session.tcp.TcpProxyData
 import com.pyamsoft.tetherfi.server.proxy.usingConnection
@@ -67,6 +69,7 @@ internal constructor(
     private val yoloRepeatDelay: Duration,
     private val session: ProxySession<TcpProxyData>,
     private val expertPreferences: ExpertPreferences,
+    private val proxyPreferences: ProxyPreferences,
     appScope: CoroutineScope,
     socketCreator: SocketCreator,
     proxyType: SharedProxy.Type,
@@ -122,6 +125,17 @@ internal constructor(
         socketTracker: SocketTracker,
     ) {
         try {
+            val upstreamEnabled = proxyPreferences.listenForUpstreamProxyEnabledChanges().first()
+            val upstreamHost = proxyPreferences.listenForUpstreamProxyHostChanges().first()
+            val upstreamPort = proxyPreferences.listenForUpstreamProxyPortChanges().first()
+
+            val upstreamProxyConfig =
+                if (upstreamEnabled && upstreamHost.isNotBlank() && upstreamPort > 0) {
+                    UpstreamProxyConfig(host = upstreamHost, port = upstreamPort)
+                } else {
+                    null
+                }
+
             session.exchange(
                 scope = this,
                 networkBinder = networkBinder,
@@ -135,9 +149,8 @@ internal constructor(
                         proxyInput = proxyInput,
                         proxyOutput = proxyOutput,
                         proxyConnectionInfo = proxyConnectionInfo,
-                        // [MODIFICACION 3] Pasamos el factory al paquete de datos
-                        // NOTA: Debes actualizar la clase TcpProxyData para que acepte este parametro
-                        upstream = upstream
+                        upstream = upstream,
+                        upstreamProxyConfig = upstreamProxyConfig,
                     ),
             )
         } finally {
