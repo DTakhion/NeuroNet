@@ -210,6 +210,39 @@ internal constructor(private val enforcer: ThreadEnforcer, context: Context) :
   override fun setSocksPort(port: Int) =
       setPreference(key = SOCKS_PORT, fallbackValue = ServerDefaults.SOCKS_PORT, value = { port })
 
+  override fun listenForUpstreamProxyEnabledChanges(): Flow<Boolean> =
+      getPreference(key = UPSTREAM_PROXY_ENABLED, value = DEFAULT_UPSTREAM_PROXY_ENABLED)
+          .flowOn(context = Dispatchers.IO)
+
+  override fun setUpstreamProxyEnabled(enabled: Boolean) =
+      setPreference(
+          key = UPSTREAM_PROXY_ENABLED,
+          fallbackValue = DEFAULT_UPSTREAM_PROXY_ENABLED,
+          value = { enabled },
+      )
+
+  override fun listenForUpstreamProxyHostChanges(): Flow<String> =
+      getPreference(key = UPSTREAM_PROXY_HOST, value = DEFAULT_UPSTREAM_PROXY_HOST)
+          .flowOn(context = Dispatchers.IO)
+
+  override fun setUpstreamProxyHost(host: String) =
+      setPreference(
+          key = UPSTREAM_PROXY_HOST,
+          fallbackValue = DEFAULT_UPSTREAM_PROXY_HOST,
+          value = { host.trim() },
+      )
+
+  override fun listenForUpstreamProxyPortChanges(): Flow<Int> =
+      getPreference(key = UPSTREAM_PROXY_PORT, value = DEFAULT_UPSTREAM_PROXY_PORT)
+          .flowOn(context = Dispatchers.IO)
+
+  override fun setUpstreamProxyPort(port: Int) =
+      setPreference(
+          key = UPSTREAM_PROXY_PORT,
+          fallbackValue = DEFAULT_UPSTREAM_PROXY_PORT,
+          value = { port },
+      )
+
   override fun listenForNetworkBandChanges(): Flow<ServerNetworkBand> =
       getPreference(key = NETWORK_BAND, value = ServerDefaults.WIFI_NETWORK_BAND.name)
           .map { ServerNetworkBand.valueOf(it) }
@@ -491,5 +524,13 @@ internal constructor(private val enforcer: ThreadEnforcer, context: Context) :
     private val PREFERRED_NETWORK = stringPreferencesKey("key_preferred_network_1")
 
     private val SOCKET_TIMEOUT = longPreferencesKey("key_socket_timeout_1")
+
+        private val UPSTREAM_PROXY_ENABLED = booleanPreferencesKey("key_upstream_proxy_enabled_1")
+        private val UPSTREAM_PROXY_HOST = stringPreferencesKey("key_upstream_proxy_host_1")
+        private val UPSTREAM_PROXY_PORT = intPreferencesKey("key_upstream_proxy_port_1")
+
+        private const val DEFAULT_UPSTREAM_PROXY_ENABLED = false
+        private const val DEFAULT_UPSTREAM_PROXY_HOST = ""
+        private const val DEFAULT_UPSTREAM_PROXY_PORT = 0
   }
 }

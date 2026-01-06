@@ -19,6 +19,7 @@ import com.pyamsoft.tetherfi.server.proxy.ServerDispatcher
 import com.pyamsoft.tetherfi.server.proxy.SharedProxy
 import com.pyamsoft.tetherfi.server.proxy.SocketTagger
 import com.pyamsoft.tetherfi.server.proxy.SocketTracker
+import com.pyamsoft.tetherfi.server.proxy.UpstreamProxyConfig
 import com.pyamsoft.tetherfi.server.proxy.session.tcp.TcpProxySession
 import com.pyamsoft.tetherfi.server.proxy.session.tcp.TransportWriteCommand
 import com.pyamsoft.tetherfi.server.proxy.usingConnection
@@ -26,6 +27,10 @@ import io.ktor.network.sockets.InetSocketAddress
 import io.ktor.network.sockets.SocketTimeoutException
 import io.ktor.utils.io.ByteReadChannel
 import io.ktor.utils.io.ByteWriteChannel
+import java.net.Proxy
+import java.net.ProxySelector
+import java.net.URI
+import java.net.InetSocketAddress as JInetSocketAddress
 import javax.inject.Inject
 import javax.inject.Named
 import javax.inject.Singleton
@@ -58,6 +63,36 @@ internal constructor(
 
     override val proxyType = SharedProxy.Type.HTTP
 
+    private data class UpstreamProxy(val address: JInetSocketAddress)
+
+    @Suppress("ReturnCount")
+    private fun resolveUpstreamProxy(
+        request: HttpProxyRequest,
+        overrideConfig: UpstreamProxyConfig?,
+    ): UpstreamProxy? {
+        if (overrideConfig != null && overrideConfig.isValid()) {
+            return UpstreamProxy(JInetSocketAddress(overrideConfig.host, overrideConfig.port))
+        }
+
+        val selector = ProxySelector.getDefault() ?: return null
+
+        val target = URI.create("http://${request.host}:${request.port}")
+        val proxies = runCatching { selector.select(target) }.getOrNull() ?: return null
+
+        for (proxy in proxies) {
+            if (proxy == Proxy.NO_PROXY) continue
+
+            if (proxy.type() == Proxy.Type.HTTP) {
+                val address = proxy.address()
+                if (address is JInetSocketAddress) {
+                    return UpstreamProxy(address)
+                }
+            }
+        }
+
+        return null
+    }
+
     /**
      * Versión original que usa Ktor + SocketCreator.
      * NOTA: el parámetro `upstream` se pasa desde TcpProxySession, pero aquí lo ignoramos.
@@ -68,7 +103,10 @@ internal constructor(
         timeout: ServerSocketTimeout,
         autoFlush: Boolean,
         request: HttpProxyRequest,
+        targetHost: String,
+        targetPort: Int,
         socketTracker: SocketTracker,
+        upstreamProxy: UpstreamProxy?,
         noinline onError: (Throwable) -> Unit,
         crossinline block: suspend (ByteReadChannel, ByteWriteChannel) -> T,
     ): T =
@@ -76,10 +114,12 @@ internal constructor(
             type = SocketCreator.Type.CLIENT,
             onError = { onError },
             onBuild = { builder ->
+                debugLog { "Connect to upstream target=$targetHost:$targetPort for ${request.raw}" }
+
                 val remote =
                     InetSocketAddress(
-                        hostname = request.host,
-                        port = request.port,
+                        hostname = targetHost,
+                        port = targetPort,
                     )
 
                 val socket =
@@ -142,6 +182,7 @@ internal constructor(
         scope: CoroutineScope,
         socketCreator: SocketCreator,
         upstream: SocketFactory, // <-- parámetro requerido por la superclase, aquí no usado
+        upstreamProxyConfig: UpstreamProxyConfig?,
         timeout: ServerSocketTimeout,
         connectionInfo: BroadcastNetworkStatus.ConnectionInfo.Connected,
         networkBinder: SocketBinder.NetworkBinder,
@@ -156,14 +197,25 @@ internal constructor(
     ) {
         enforcer.assertOffMainThread()
 
+        val upstreamProxy = resolveUpstreamProxy(request, upstreamProxyConfig)
+        val (targetHost, targetPort) =
+            if (upstreamProxy != null) {
+                upstreamProxy.address.run { hostString to port }
+            } else {
+                request.host to request.port
+            }
+
         try {
             connectToInternet(
                 autoFlush = true,
                 socketCreator = socketCreator,
                 timeout = timeout,
                 networkBinder = networkBinder,
+                targetHost = targetHost,
+                targetPort = targetPort,
                 socketTracker = socketTracker,
                 request = request,
+                upstreamProxy = upstreamProxy,
                 onError = { e ->
                     appScope.launch(context = Dispatchers.IO) {
                         handleProxyToInternetError(
@@ -185,6 +237,7 @@ internal constructor(
                             internetInput = internetInput,
                             internetOutput = internetOutput,
                             request = request,
+                            useUpstreamProxy = upstreamProxy != null,
                             client = client,
                             onReport = onReport,
                         )

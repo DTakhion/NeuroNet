@@ -26,6 +26,7 @@ import com.pyamsoft.tetherfi.server.proxy.ProxyConnectionInfo
 import com.pyamsoft.tetherfi.server.proxy.ServerDispatcher
 import com.pyamsoft.tetherfi.server.proxy.SharedProxy
 import com.pyamsoft.tetherfi.server.proxy.SocketTracker
+import com.pyamsoft.tetherfi.server.proxy.UpstreamProxyConfig
 import com.pyamsoft.tetherfi.server.proxy.session.tcp.AbstractTcpSessionTransport
 import com.pyamsoft.tetherfi.server.proxy.session.tcp.TransportWriteCommand
 import com.pyamsoft.tetherfi.server.proxy.session.tcp.socks.five.SOCKS5Implementation
@@ -100,6 +101,7 @@ internal constructor(
         socketTracker: SocketTracker,
         client: TetherClient,
         version: SOCKSVersion,
+        upstreamProxyConfig: UpstreamProxyConfig?,
         onError: suspend (Throwable) -> Unit,
         onReport: suspend (ByteTransferReport) -> Unit,
     ) =
@@ -121,6 +123,7 @@ internal constructor(
                         proxyConnectionInfo = proxyConnectionInfo,
                         connectionInfo = connectionInfo,
                         client = client,
+                        upstreamProxyConfig = upstreamProxyConfig,
                         onError = onError,
                         onReport = onReport,
                     )
@@ -138,6 +141,7 @@ internal constructor(
                         proxyConnectionInfo = proxyConnectionInfo,
                         connectionInfo = connectionInfo,
                         client = client,
+                        upstreamProxyConfig = upstreamProxyConfig,
                         onError = onError,
                         onReport = onReport,
                     )

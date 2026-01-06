@@ -25,6 +25,7 @@ import com.pyamsoft.tetherfi.server.proxy.SharedProxy
 import com.pyamsoft.tetherfi.server.proxy.session.tcp.AbstractTcpSessionTransport
 import com.pyamsoft.tetherfi.server.proxy.session.tcp.TransportWriteCommand
 import com.pyamsoft.tetherfi.server.proxy.session.tcp.relayData
+import com.pyamsoft.tetherfi.server.proxy.session.tcp.SOCKET_EOL
 import io.ktor.network.sockets.SocketTimeoutException
 import io.ktor.utils.io.ByteReadChannel
 import io.ktor.utils.io.ByteWriteChannel
@@ -50,9 +51,12 @@ internal constructor(
    */
   private suspend fun establishHttpsConnection(
       input: ByteReadChannel,
-      output: ByteWriteChannel,
+      proxyOutput: ByteWriteChannel,
+      internetInput: ByteReadChannel,
+      internetOutput: ByteWriteChannel,
       request: HttpProxyRequest,
-  ) {
+      useUpstreamProxy: Boolean,
+    ): Boolean {
     // We exhaust the input here because the client is sending CONNECT data to what it thinks is a
     // server but its actually us, and we don't care how they connect
     //
@@ -64,7 +68,35 @@ internal constructor(
     } while (!throwaway.isNullOrBlank())
 
     debugLog { "Establish HTTPS CONNECT tunnel ${request.raw}" }
-    writeHttpConnectSuccess(output)
+
+    if (useUpstreamProxy) {
+      // We must ask the upstream proxy to open the tunnel for us first.
+      val connectLine = "CONNECT ${request.host}:${request.port} $PROXY_HTTP_VERSION"
+      internetOutput.writeFully(writeHttpMessageAndAwaitMore(connectLine))
+      internetOutput.writeFully(SOCKET_EOL.encodeToByteArray())
+      internetOutput.flush()
+
+      val statusLine = internetInput.readUTF8Line() ?: return false
+      if (!statusLine.startsWith("HTTP/")) {
+        warnLog { "Upstream CONNECT bad status line: $statusLine" }
+        return false
+      }
+
+      // Expect 200 for success.
+      if (!statusLine.contains(" 200")) {
+        warnLog { "Upstream CONNECT rejected tunnel: $statusLine" }
+        return false
+      }
+
+      // Drain upstream headers.
+      while (true) {
+        val line = internetInput.readUTF8Line()
+        if (line.isNullOrBlank()) break
+      }
+    }
+
+    writeHttpConnectSuccess(proxyOutput)
+    return true
   }
 
   /**
@@ -75,11 +107,13 @@ internal constructor(
   private suspend fun replayHttpCommunication(
       output: ByteWriteChannel,
       request: HttpProxyRequest,
+      useRawRequestLine: Boolean,
   ) {
     // TODO(Peter): If the output socket is already closed this will fail and throw.
     //   realistically, will the output socket ever be closed for the initial connection?
-    debugLog { "Rewrote initial HTTP request: ${request.raw} -> ${request.httpRequest}" }
-    output.writeFully(writeHttpMessageAndAwaitMore(request.httpRequest))
+    val firstLine = if (useRawRequestLine) request.raw else request.httpRequest
+    debugLog { "Rewrote initial HTTP request: ${request.raw} -> $firstLine" }
+    output.writeFully(writeHttpMessageAndAwaitMore(firstLine))
   }
 
   override suspend fun writeProxyOutput(
@@ -125,6 +159,7 @@ internal constructor(
       internetInput: ByteReadChannel,
       internetOutput: ByteWriteChannel,
       request: HttpProxyRequest,
+      useUpstreamProxy: Boolean,
       client: TetherClient,
       onReport: suspend (ByteTransferReport) -> Unit,
   ) {
@@ -132,19 +167,26 @@ internal constructor(
 
     try {
       if (request.isHttpsConnectRequest()) {
-        // Establish an HTTPS connection by faking the CONNECT response
-        // Send a 200 to the connecting client so that they will then continue to
-        // send the actual HTTP data to the real endpoint
-        establishHttpsConnection(
-            input = proxyInput,
-            output = proxyOutput,
-            request = request,
-        )
+        val tunnelReady =
+            establishHttpsConnection(
+                input = proxyInput,
+                proxyOutput = proxyOutput,
+                internetInput = internetInput,
+                internetOutput = internetOutput,
+                request = request,
+                useUpstreamProxy = useUpstreamProxy,
+            )
+
+        if (!tunnelReady) {
+          writeProxyOutput(proxyOutput, request, TransportWriteCommand.ERROR)
+          return
+        }
       } else {
         // Send initial HTTP communication, since we consumed it above
         replayHttpCommunication(
             output = internetOutput,
             request = request,
+            useRawRequestLine = useUpstreamProxy,
         )
       }
 

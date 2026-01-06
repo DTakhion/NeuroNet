@@ -35,6 +35,7 @@ import com.pyamsoft.tetherfi.server.proxy.ServerDispatcher
 import com.pyamsoft.tetherfi.server.proxy.SharedProxy
 import com.pyamsoft.tetherfi.server.proxy.SocketTagger
 import com.pyamsoft.tetherfi.server.proxy.SocketTracker
+import com.pyamsoft.tetherfi.server.proxy.UpstreamProxyConfig
 import com.pyamsoft.tetherfi.server.proxy.session.ProxySession
 import io.ktor.utils.io.ByteReadChannel
 import io.ktor.utils.io.ByteWriteChannel
@@ -181,6 +182,7 @@ protected constructor(
         val proxyOutput = data.proxyOutput
         val proxyConnectionInfo = data.proxyConnectionInfo
         val upstream = data.upstream // SocketFactory upstream inyectado desde WifiSharedProxy
+        val upstreamProxyConfig = data.upstreamProxyConfig
 
         // We use a string parsing to figure out what this request wants to do
         val request: Q = transport.parseRequest(proxyInput, proxyOutput)
@@ -210,6 +212,7 @@ protected constructor(
             socketTracker = socketTracker,
             client = client,
             request = request,
+            upstreamProxyConfig = upstreamProxyConfig,
         )
     }
 
@@ -266,6 +269,7 @@ protected constructor(
         scope: CoroutineScope,
         socketCreator: SocketCreator,
         upstream: SocketFactory,
+        upstreamProxyConfig: UpstreamProxyConfig?,
         timeout: ServerSocketTimeout,
         connectionInfo: BroadcastNetworkStatus.ConnectionInfo.Connected,
         networkBinder: SocketBinder.NetworkBinder,

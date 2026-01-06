@@ -32,6 +32,7 @@ import com.pyamsoft.tetherfi.server.proxy.ServerDispatcher
 import com.pyamsoft.tetherfi.server.proxy.SharedProxy
 import com.pyamsoft.tetherfi.server.proxy.SocketTagger
 import com.pyamsoft.tetherfi.server.proxy.SocketTracker
+import com.pyamsoft.tetherfi.server.proxy.UpstreamProxyConfig
 import com.pyamsoft.tetherfi.server.proxy.session.tcp.TcpProxySession
 import com.pyamsoft.tetherfi.server.proxy.session.tcp.TransportWriteCommand
 import io.ktor.network.sockets.SocketTimeoutException
@@ -86,6 +87,7 @@ internal constructor(
         scope: CoroutineScope,
         socketCreator: SocketCreator,
         upstream: SocketFactory, // <--- requerido por TcpProxySession, pero NO usado aquí
+        upstreamProxyConfig: UpstreamProxyConfig?,
         timeout: ServerSocketTimeout,
         connectionInfo: BroadcastNetworkStatus.ConnectionInfo.Connected,
         networkBinder: SocketBinder.NetworkBinder,
@@ -107,6 +109,7 @@ internal constructor(
                 scope = scope,
                 socketCreator = socketCreator,
                 timeout = timeout,
+                upstreamProxyConfig = upstreamProxyConfig,
                 connectionInfo = connectionInfo,
                 networkBinder = networkBinder,
                 serverDispatcher = serverDispatcher,

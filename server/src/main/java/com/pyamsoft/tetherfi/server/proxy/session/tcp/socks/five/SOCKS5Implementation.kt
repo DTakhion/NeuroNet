@@ -31,6 +31,7 @@ import com.pyamsoft.tetherfi.server.proxy.ProxyConnectionInfo
 import com.pyamsoft.tetherfi.server.proxy.ServerDispatcher
 import com.pyamsoft.tetherfi.server.proxy.SocketTagger
 import com.pyamsoft.tetherfi.server.proxy.SocketTracker
+import com.pyamsoft.tetherfi.server.proxy.UpstreamProxyConfig
 import com.pyamsoft.tetherfi.server.proxy.session.tcp.socks.BaseSOCKSImplementation
 import com.pyamsoft.tetherfi.server.proxy.session.tcp.socks.BaseSOCKSImplementation.Responder.Companion.DEBUG_SOCKS_REPLIES
 import com.pyamsoft.tetherfi.server.proxy.session.tcp.socks.BaseSOCKSImplementation.Responder.Companion.INVALID_IPV4_BYTES
@@ -204,6 +205,7 @@ internal constructor(
       proxyConnectionInfo: ProxyConnectionInfo,
       connectionInfo: BroadcastNetworkStatus.ConnectionInfo.Connected,
       client: TetherClient,
+        upstreamProxyConfig: UpstreamProxyConfig?,
       onError: suspend (Throwable) -> Unit,
       onReport: suspend (ByteTransferReport) -> Unit,
   ) =
@@ -278,6 +280,7 @@ internal constructor(
             destinationAddress = packetDestination.address,
             destinationPort = packetDestination.port,
             addressType = packetDestination.addressType,
+            upstreamProxyConfig = upstreamProxyConfig,
             onError = onError,
             onReport = onReport,
         )

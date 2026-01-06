@@ -1,6 +1,7 @@
 package com.pyamsoft.tetherfi.server.proxy.session.tcp
 
 import com.pyamsoft.tetherfi.server.proxy.ProxyConnectionInfo
+import com.pyamsoft.tetherfi.server.proxy.UpstreamProxyConfig
 import com.pyamsoft.tetherfi.server.proxy.session.ProxyData
 import io.ktor.utils.io.ByteReadChannel
 import io.ktor.utils.io.ByteWriteChannel
@@ -14,4 +15,5 @@ internal constructor(
     internal val proxyConnectionInfo: ProxyConnectionInfo,
     // [MODIFICACION 2] Nuevo campo para transportar el factory de red
     internal val upstream: SocketFactory,
+    internal val upstreamProxyConfig: UpstreamProxyConfig?,
 ) : ProxyData

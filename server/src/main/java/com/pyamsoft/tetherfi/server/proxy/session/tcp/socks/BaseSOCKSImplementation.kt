@@ -1,9 +1,6 @@
 package com.pyamsoft.tetherfi.server.proxy.session.tcp.socks
 
 import androidx.annotation.CheckResult
-import com.pyamsoft.tetherfi.server.net.connectWithConfiguration
-import com.pyamsoft.tetherfi.server.net.socketTimeout
-import com.pyamsoft.tetherfi.server.net.remoteAddress
 import com.pyamsoft.pydroid.core.cast
 import com.pyamsoft.pydroid.core.requireNotNull
 import com.pyamsoft.pydroid.util.ifNotCancellation
@@ -18,16 +15,25 @@ import com.pyamsoft.tetherfi.server.proxy.ProxyConnectionInfo
 import com.pyamsoft.tetherfi.server.proxy.ServerDispatcher
 import com.pyamsoft.tetherfi.server.proxy.SocketTagger
 import com.pyamsoft.tetherfi.server.proxy.SocketTracker
+import com.pyamsoft.tetherfi.server.proxy.UpstreamProxyConfig
 import com.pyamsoft.tetherfi.server.proxy.session.tcp.relayData
 import com.pyamsoft.tetherfi.server.proxy.usingConnection
+import com.pyamsoft.tetherfi.server.net.connectWithConfiguration
+import com.pyamsoft.tetherfi.server.net.remoteAddress
+import com.pyamsoft.tetherfi.server.net.socketTimeout
 import io.ktor.network.sockets.InetSocketAddress
 import io.ktor.network.sockets.toJavaAddress
 import io.ktor.utils.io.ByteReadChannel
 import io.ktor.utils.io.ByteWriteChannel
+import io.ktor.utils.io.readUTF8Line
 import java.net.InetAddress
 import kotlin.time.Duration.Companion.minutes
-import kotlinx.coroutines.*
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.TimeoutCancellationException
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.withTimeout
 
 internal abstract class BaseSOCKSImplementation<
         AT : BaseSOCKSImplementation.SOCKSAddressType,
@@ -52,6 +58,7 @@ protected constructor(
         destinationPort: UShort,
         addressType: AT,
         responder: R,
+        upstreamProxyConfig: UpstreamProxyConfig?,
         onError: suspend (Throwable) -> Unit,
         onReport: suspend (ByteTransferReport) -> Unit,
     ) =
@@ -59,7 +66,6 @@ protected constructor(
             type = SocketCreator.Type.CLIENT,
             onError = { appScope.launch(Dispatchers.IO) { onError(it) } },
             onBuild = { builder ->
-                // Cuerpo coroutine explícito para permitir llamadas suspend
                 runBlocking(Dispatchers.IO) {
                     val connected =
                         try {
@@ -69,14 +75,21 @@ protected constructor(
                                 .also { socketTagger.tagSocket() }
                                 .let { b ->
                                     withTimeout(2.minutes) {
-                                        val remote =
-                                            InetSocketAddress(
-                                                hostname = destinationAddress.hostName,
-                                                port = destinationPort.toInt(),
-                                            )
+                                        val target =
+                                            if (upstreamProxyConfig?.isValid() == true) {
+                                                InetSocketAddress(
+                                                    hostname = upstreamProxyConfig.host,
+                                                    port = upstreamProxyConfig.port,
+                                                )
+                                            } else {
+                                                InetSocketAddress(
+                                                    hostname = destinationAddress.hostName,
+                                                    port = destinationPort.toInt(),
+                                                )
+                                            }
 
                                         b.connectWithConfiguration(
-                                            remote = remote,
+                                            remote = target,
                                             onConnected = { s -> runBlocking { networkBinder.bindToNetwork(s) } },
                                             configure = {
                                                 val d = timeout.timeoutDuration
@@ -104,19 +117,36 @@ protected constructor(
                         val remote = socket.remoteAddress
                         Timber.d { "SOCKS CONNECTED: $remote" }
                         Timber.d { "[B-CONNECT] Socket conectado a destino remoto: $remote para cliente ${client.nickName}" }
-                        try {
-                            responder.sendConnectSuccess(
-                                addressType = addressType,
-                                remote = remote.cast<InetSocketAddress>(),
-                            )
-                        } catch (e: Throwable) {
-                            e.ifNotCancellation {
-                                Timber.e(e) { "Error sending connect() SUCCESS notification" }
-                                return@use
-                            }
-                        }
 
                         socket.usingConnection(autoFlush = false) { internetInput, internetOutput ->
+                            val tunneled =
+                                upstreamProxyConfig?.takeIf { it.isValid() }?.let {
+                                    establishUpstreamTunnel(
+                                        internetInput = internetInput,
+                                        internetOutput = internetOutput,
+                                        destinationHost = destinationAddress.hostName,
+                                        destinationPort = destinationPort.toInt(),
+                                    )
+                                } ?: true
+
+                            if (!tunneled) {
+                                Timber.w { "Upstream proxy rejected tunnel for ${destinationAddress.hostName}:${destinationPort}" }
+                                responder.sendRefusal()
+                                return@usingConnection
+                            }
+
+                            try {
+                                responder.sendConnectSuccess(
+                                    addressType = addressType,
+                                    remote = remote.cast<InetSocketAddress>(),
+                                )
+                            } catch (e: Throwable) {
+                                e.ifNotCancellation {
+                                    Timber.e(e) { "Error sending connect() SUCCESS notification" }
+                                    return@usingConnection
+                                }
+                            }
+
                             try {
                                 Timber.d { "[C-RELAY] Iniciando relayData para conexión SOCKS a $remote" }
                                 relayData(
@@ -139,6 +169,39 @@ protected constructor(
             },
         )
 
+    private suspend fun establishUpstreamTunnel(
+        internetInput: ByteReadChannel,
+        internetOutput: ByteWriteChannel,
+        destinationHost: String,
+        destinationPort: Int,
+    ): Boolean {
+        val connectLine = "CONNECT ${destinationHost}:${destinationPort} HTTP/1.1\r\n"
+        val hostLine = "Host: ${destinationHost}:${destinationPort}\r\n"
+
+        internetOutput.writeFully((connectLine + hostLine + "\r\n").encodeToByteArray())
+        internetOutput.flush()
+
+        val statusLine = internetInput.readUTF8Line() ?: return false
+        if (!statusLine.startsWith("HTTP/")) {
+            Timber.w { "Upstream CONNECT bad status line: $statusLine" }
+            return false
+        }
+
+        if (!statusLine.contains(" 200")) {
+            Timber.w { "Upstream CONNECT rejected tunnel: $statusLine" }
+            return false
+        }
+
+        while (true) {
+            val line = internetInput.readUTF8Line() ?: break
+            if (line.isBlank()) {
+                break
+            }
+        }
+
+        return true
+    }
+
     private suspend fun bind(
         scope: CoroutineScope,
         socketCreator: SocketCreator,
@@ -158,7 +221,6 @@ protected constructor(
             type = SocketCreator.Type.SERVER,
             onError = { appScope.launch(Dispatchers.IO) { onError(it) } },
             onBuild = { builder ->
-                // Cuerpo coroutine explícito para permitir llamadas suspend
                 runBlocking(Dispatchers.IO) {
                     val bound =
                         try {
@@ -258,6 +320,7 @@ protected constructor(
         destinationAddress: InetAddress,
         addressType: AT,
         responder: R,
+        upstreamProxyConfig: UpstreamProxyConfig?,
         onError: suspend (Throwable) -> Unit,
         onReport: suspend (ByteTransferReport) -> Unit,
     ) =
@@ -277,6 +340,7 @@ protected constructor(
                     destinationPort = destinationPort,
                     addressType = addressType,
                     timeout = timeout,
+                    upstreamProxyConfig = upstreamProxyConfig,
                     onError = onError,
                     onReport = onReport,
                 )

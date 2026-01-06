@@ -36,4 +36,16 @@ interface ProxyPreferences {
   @CheckResult fun listenForSocksEnabledChanges(): Flow<Boolean>
 
   fun setSocksEnabled(enabled: Boolean)
+
+  @CheckResult fun listenForUpstreamProxyEnabledChanges(): Flow<Boolean>
+
+  fun setUpstreamProxyEnabled(enabled: Boolean)
+
+  @CheckResult fun listenForUpstreamProxyHostChanges(): Flow<String>
+
+  fun setUpstreamProxyHost(host: String)
+
+  @CheckResult fun listenForUpstreamProxyPortChanges(): Flow<Int>
+
+  fun setUpstreamProxyPort(port: Int)
 }
