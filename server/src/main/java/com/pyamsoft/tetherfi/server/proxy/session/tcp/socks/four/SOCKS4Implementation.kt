@@ -117,7 +117,7 @@ internal constructor(
       proxyConnectionInfo: ProxyConnectionInfo,
       connectionInfo: BroadcastNetworkStatus.ConnectionInfo.Connected,
       client: TetherClient,
-        upstreamProxyConfig: UpstreamProxyConfig?,
+      upstreamProxyConfig: UpstreamProxyConfig?,
       onError: suspend (Throwable) -> Unit,
       onReport: suspend (ByteTransferReport) -> Unit,
   ) =

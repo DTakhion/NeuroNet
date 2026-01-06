@@ -26,6 +26,7 @@ import io.ktor.network.sockets.toJavaAddress
 import io.ktor.utils.io.ByteReadChannel
 import io.ktor.utils.io.ByteWriteChannel
 import io.ktor.utils.io.readUTF8Line
+import io.ktor.utils.io.writeFully
 import java.net.InetAddress
 import kotlin.time.Duration.Companion.minutes
 import kotlinx.coroutines.CoroutineScope
@@ -178,7 +179,9 @@ protected constructor(
         val connectLine = "CONNECT ${destinationHost}:${destinationPort} HTTP/1.1\r\n"
         val hostLine = "Host: ${destinationHost}:${destinationPort}\r\n"
 
-        internetOutput.writeFully((connectLine + hostLine + "\r\n").encodeToByteArray())
+        internetOutput.writeFully(connectLine.encodeToByteArray())
+        internetOutput.writeFully(hostLine.encodeToByteArray())
+        internetOutput.writeFully("\r\n".encodeToByteArray())
         internetOutput.flush()
 
         val statusLine = internetInput.readUTF8Line() ?: return false

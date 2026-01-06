@@ -131,6 +131,7 @@ protected constructor(
         socketTracker: SocketTracker,
         client: TetherClient,
         request: Q,
+        upstreamProxyConfig: UpstreamProxyConfig?,
     ) {
         // This is launched as its own scope so that the side effect does not slow
         // down the internet traffic processing.
@@ -146,6 +147,7 @@ protected constructor(
             scope = scope,
             socketCreator = socketCreator,
             upstream = upstream, // Propagamos upstream a la implementación concreta
+            upstreamProxyConfig = upstreamProxyConfig,
             timeout = timeout,
             connectionInfo = connectionInfo,
             networkBinder = networkBinder,
