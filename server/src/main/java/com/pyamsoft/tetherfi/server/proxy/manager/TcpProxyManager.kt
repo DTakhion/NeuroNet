@@ -69,6 +69,7 @@ internal constructor(
     private val yoloRepeatDelay: Duration,
     private val session: ProxySession<TcpProxyData>,
     private val expertPreferences: ExpertPreferences,
+    private val proxyPreferences: ProxyPreferences,
     appScope: CoroutineScope,
     socketCreator: SocketCreator,
     proxyType: SharedProxy.Type,
@@ -124,10 +125,23 @@ internal constructor(
         socketTracker: SocketTracker,
     ) {
         try {
-            // Usar null para upstreamProxyConfig para evitar lecturas bloqueantes
-            // El proxy funcionará en modo directo (sin upstream) por defecto.
-            // Los usuarios pueden habilitar upstream desde la UI en el futuro.
-            val upstreamProxyConfig: UpstreamProxyConfig? = null
+            // Leer configuración de upstream proxy desde preferencias
+            val isUpstreamEnabled = proxyPreferences.listenForUpstreamProxyEnabledChanges().first()
+            val upstreamHost = proxyPreferences.listenForUpstreamProxyHostChanges().first()
+            val upstreamPort = proxyPreferences.listenForUpstreamProxyPortChanges().first()
+            
+            val upstreamProxyConfig: UpstreamProxyConfig? = if (isUpstreamEnabled) {
+                val config = UpstreamProxyConfig(host = upstreamHost, port = upstreamPort)
+                if (config.isValid()) {
+                    Timber.d("Upstream proxy enabled: $upstreamHost:$upstreamPort")
+                    config
+                } else {
+                    Timber.w("Upstream proxy enabled but config invalid: host='$upstreamHost' port=$upstreamPort")
+                    null
+                }
+            } else {
+                null
+            }
 
             session.exchange(
                 scope = this,

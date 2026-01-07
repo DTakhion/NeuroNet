@@ -47,6 +47,7 @@ import com.pyamsoft.tetherfi.core.AppDevEnvironment
 import com.pyamsoft.tetherfi.core.ExperimentalRuntimeFlags
 import com.pyamsoft.tetherfi.core.Timber
 import com.pyamsoft.tetherfi.qr.QRCodeEntry
+import com.pyamsoft.tetherfi.server.ProxyPreferences
 import com.pyamsoft.tetherfi.server.broadcast.BroadcastNetworkStatus
 import com.pyamsoft.tetherfi.server.status.RunningStatus
 import com.pyamsoft.tetherfi.settings.SettingsDialog
@@ -69,6 +70,7 @@ internal class MainInjector @Inject internal constructor() : ComposableInjector(
   @JvmField @Inject internal var viewModel: MainViewModeler? = null
 
   @JvmField @Inject internal var appEnvironment: AppDevEnvironment? = null
+  @JvmField @Inject internal var proxyPreferences: ProxyPreferences? = null
   @JvmField @Inject internal var permissionRequestBus: EventBus<PermissionRequests>? = null
   @JvmField @Inject internal var permissionResponseBus: EventConsumer<PermissionResponse>? = null
   @JvmField @Inject internal var experimentalRuntimeFlags: ExperimentalRuntimeFlags? = null
@@ -80,6 +82,7 @@ internal class MainInjector @Inject internal constructor() : ComposableInjector(
   override fun onDispose() {
     viewModel = null
     appEnvironment = null
+    proxyPreferences = null
     permissionRequestBus = null
     permissionResponseBus = null
     experimentalRuntimeFlags = null
@@ -205,6 +208,7 @@ fun MainEntry(
   val component = rememberComposableInjector { MainInjector() }
   val viewModel = rememberNotNull(component.viewModel)
   val appEnvironment = rememberNotNull(component.appEnvironment)
+  val proxyPreferences = rememberNotNull(component.proxyPreferences)
   val permissionRequestBus = rememberNotNull(component.permissionRequestBus)
   val permissionResponseBus = rememberNotNull(component.permissionResponseBus)
   val experimentalRuntimeFlags = rememberNotNull(component.experimentalRuntimeFlags)
@@ -294,6 +298,7 @@ fun MainEntry(
                     max = LANDSCAPE_MAX_WIDTH,
                 ),
         appEnvironment = appEnvironment,
+        proxyPreferences = proxyPreferences,
         onDismiss = { viewModel.handleCloseDialog(MainViewDialogs.SETTINGS) },
     )
   }

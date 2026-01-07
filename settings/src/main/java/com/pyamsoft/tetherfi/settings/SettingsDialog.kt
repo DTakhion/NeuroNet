@@ -60,12 +60,14 @@ private enum class SettingsContentTypes {
   DEBUG_SOCKET_ERROR,
   BOTTOM_SPACER,
   EXPERIMENT_EXPLAIN,
+  UPSTREAM_PROXY_CONFIG,
 }
 
 @Composable
 fun SettingsDialog(
     modifier: Modifier = Modifier,
     appEnvironment: AppDevEnvironment,
+    proxyPreferences: com.pyamsoft.tetherfi.server.ProxyPreferences,
     onDismiss: () -> Unit,
 ) {
   val context = LocalContext.current
@@ -106,6 +108,7 @@ fun SettingsDialog(
             extraDebugContent = {
               renderExperiments(
                   itemModifier = itemModifier,
+                  proxyPreferences = proxyPreferences,
               )
 
               if (context.isDebugMode()) {
@@ -159,6 +162,7 @@ private fun DebugItem(
 
 private fun LazyListScope.renderExperiments(
     itemModifier: Modifier = Modifier,
+    proxyPreferences: com.pyamsoft.tetherfi.server.ProxyPreferences,
 ) {
   item(
       contentType = SettingsContentTypes.EXPERIMENT_EXPLAIN,
@@ -181,6 +185,15 @@ private fun LazyListScope.renderExperiments(
                         alpha = TypographyDefaults.ALPHA_DISABLED,
                     ),
             ),
+    )
+  }
+
+  item(
+      contentType = SettingsContentTypes.UPSTREAM_PROXY_CONFIG,
+  ) {
+    UpstreamProxySettings(
+        modifier = itemModifier,
+        proxyPreferences = proxyPreferences,
     )
   }
 
