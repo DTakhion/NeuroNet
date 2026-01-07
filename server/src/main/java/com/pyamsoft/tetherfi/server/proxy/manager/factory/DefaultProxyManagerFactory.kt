@@ -63,7 +63,6 @@ internal constructor(
             serverStopConsumer = serverStopConsumer,
             socketBinder = socketBinder,
             expertPreferences = expertPreferences,
-            proxyPreferences = proxyPreferences,
             proxyType = proxyType,
             session = session,
             hostConnection = info,
