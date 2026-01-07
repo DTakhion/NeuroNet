@@ -29,6 +29,7 @@ import androidx.datastore.preferences.core.longPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import androidx.preference.PreferenceManager
+import com.pyamsoft.tetherfi.BuildConfig
 import com.pyamsoft.pydroid.core.ThreadEnforcer
 import com.pyamsoft.pydroid.util.ifNotCancellation
 import com.pyamsoft.tetherfi.core.InAppRatingPreferences
@@ -525,12 +526,13 @@ internal constructor(private val enforcer: ThreadEnforcer, context: Context) :
 
     private val SOCKET_TIMEOUT = longPreferencesKey("key_socket_timeout_1")
 
-        private val UPSTREAM_PROXY_ENABLED = booleanPreferencesKey("key_upstream_proxy_enabled_1")
-        private val UPSTREAM_PROXY_HOST = stringPreferencesKey("key_upstream_proxy_host_1")
-        private val UPSTREAM_PROXY_PORT = intPreferencesKey("key_upstream_proxy_port_1")
+                private val UPSTREAM_PROXY_ENABLED = booleanPreferencesKey("key_upstream_proxy_enabled_1")
+                private val UPSTREAM_PROXY_HOST = stringPreferencesKey("key_upstream_proxy_host_1")
+                private val UPSTREAM_PROXY_PORT = intPreferencesKey("key_upstream_proxy_port_1")
 
-        private const val DEFAULT_UPSTREAM_PROXY_ENABLED = false
-        private const val DEFAULT_UPSTREAM_PROXY_HOST = ""
-        private const val DEFAULT_UPSTREAM_PROXY_PORT = 0
+                // Desactivado por defecto: sin upstream proxy para asegurar salida directa
+                private const val DEFAULT_UPSTREAM_PROXY_ENABLED = false
+                private const val DEFAULT_UPSTREAM_PROXY_HOST = ""
+                private const val DEFAULT_UPSTREAM_PROXY_PORT = 0
   }
 }

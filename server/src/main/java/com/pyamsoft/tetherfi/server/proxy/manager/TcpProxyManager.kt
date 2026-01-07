@@ -125,14 +125,35 @@ internal constructor(
         socketTracker: SocketTracker,
     ) {
         try {
-            val upstreamEnabled = proxyPreferences.listenForUpstreamProxyEnabledChanges().first()
-            val upstreamHost = proxyPreferences.listenForUpstreamProxyHostChanges().first()
-            val upstreamPort = proxyPreferences.listenForUpstreamProxyPortChanges().first()
+            val upstreamEnabled = 
+                try {
+                    proxyPreferences.listenForUpstreamProxyEnabledChanges().first()
+                } catch (e: Exception) {
+                    Timber.w(e, "Error reading upstream enabled preference, defaulting to false")
+                    false
+                }
+            val upstreamHost = 
+                try {
+                    proxyPreferences.listenForUpstreamProxyHostChanges().first()
+                } catch (e: Exception) {
+                    Timber.w(e, "Error reading upstream host preference")
+                    ""
+                }
+            val upstreamPort = 
+                try {
+                    proxyPreferences.listenForUpstreamProxyPortChanges().first()
+                } catch (e: Exception) {
+                    Timber.w(e, "Error reading upstream port preference")
+                    0
+                }
 
             val upstreamProxyConfig =
                 if (upstreamEnabled && upstreamHost.isNotBlank() && upstreamPort > 0) {
-                    UpstreamProxyConfig(host = upstreamHost, port = upstreamPort)
+                    UpstreamProxyConfig(host = upstreamHost, port = upstreamPort).also {
+                        debugLog { "Using upstream proxy: ${it.host}:${it.port}" }
+                    }
                 } else {
+                    debugLog { "No upstream proxy configured (enabled=$upstreamEnabled, host=$upstreamHost, port=$upstreamPort)" }
                     null
                 }
 
