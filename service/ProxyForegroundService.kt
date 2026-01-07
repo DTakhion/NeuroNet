@@ -100,10 +100,29 @@ class ProxyForegroundService : Service() {
 
         Timber.d("Intentando adquirir red upstream...")
 
-        val upstreamNetwork = upstreamSelector.acquire(
-            preferred = UpstreamPref.WIFI,
-            fallback = UpstreamPref.CELL
-        )
+        // Reintentar WiFi hasta 3 veces (puede interrumpirse temporalmente al activar WiFi Direct)
+        var upstreamNetwork: Network? = null
+        var wifiAttempts = 0
+        val maxWifiRetries = 3
+        
+        while (upstreamNetwork == null && wifiAttempts < maxWifiRetries) {
+            wifiAttempts++
+            Timber.d("Intento WiFi #$wifiAttempts de $maxWifiRetries...")
+            
+            upstreamNetwork = upstreamSelector.acquire(
+                preferred = UpstreamPref.WIFI,
+                fallback = if (wifiAttempts >= maxWifiRetries) UpstreamPref.CELL else null
+            )
+            
+            if (upstreamNetwork == null && wifiAttempts < maxWifiRetries) {
+                Timber.w("WiFi no disponible aún, reintentando en 2 segundos...")
+                kotlinx.coroutines.delay(2000)
+            }
+        }
+        
+        if (upstreamNetwork == null) {
+            throw IllegalStateException("No se pudo adquirir ninguna red después de $wifiAttempts intentos")
+        }
 
         Timber.d("Red adquirida exitosamente: $upstreamNetwork")
 

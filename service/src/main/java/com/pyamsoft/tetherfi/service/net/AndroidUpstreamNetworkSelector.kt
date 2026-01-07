@@ -30,8 +30,8 @@ class AndroidUpstreamNetworkSelector @Inject constructor(
 
     override suspend fun acquire(
         preferred: UpstreamPref,
-        fallback: UpstreamPref,
-    ): Network {
+        fallback: UpstreamPref?,
+    ): Network? {
         // 1. INTENTO PRINCIPAL
         Timber.d("Solicitando red upstream preferida: $preferred")
         traceLogger.logDebug("UPSTREAM", "Request preferida=$preferred, fallback=$fallback")
@@ -52,7 +52,12 @@ class AndroidUpstreamNetworkSelector @Inject constructor(
             Timber.w("ADVERTENCIA: No se pudo adquirir $preferred. Intentando fallback...")
         }
 
-        // 3. INTENTO DE FALLBACK (RESPALDO)
+        // 3. INTENTO DE FALLBACK (RESPALDO) - Solo si se especificó
+        if (fallback == null) {
+            Timber.d("No hay fallback especificado, retornando null")
+            return null
+        }
+        
         Timber.d("Intentando red de respaldo: $fallback")
         traceLogger.logWarn("UPSTREAM", "Fallback a $fallback tras fallo en $preferred")
         val fallbackResult = runCatching { tryAcquire(fallback) }
@@ -63,13 +68,13 @@ class AndroidUpstreamNetworkSelector @Inject constructor(
             return fallbackNetwork
         }
 
-        // 4. ERROR FATAL
+        // 4. ERROR: No se pudo adquirir ninguna red
         val finalMsg =
             "CRÍTICO: No se pudo obtener conexión a Internet. " +
                     "Falló $preferred y también falló $fallback. Verifica que tengas señal."
         fallbackResult.exceptionOrNull()?.let { Timber.e(it, finalMsg) } ?: Timber.e(finalMsg)
         traceLogger.logError("UPSTREAM", finalMsg)
-        throw IllegalStateException(finalMsg)
+        return null
     }
 
     /**
@@ -78,8 +83,11 @@ class AndroidUpstreamNetworkSelector @Inject constructor(
      */
     @CheckResult
     private suspend fun tryAcquire(pref: UpstreamPref): Network? {
-        // Timeout de 6 segundos para no dejar al usuario esperando eternamente
-        return withTimeoutOrNull(6_000L) {
+        // Timeout aumentado a 15 segundos para WiFi (puede tardar al activar WiFi Direct)
+        // Para CELL mantenemos 6 segundos
+        val timeoutMs = if (pref == UpstreamPref.WIFI) 15_000L else 6_000L
+        
+        return withTimeoutOrNull(timeoutMs) {
             suspendCancellableCoroutine { cont ->
 
                 // Construimos el request según la preferencia

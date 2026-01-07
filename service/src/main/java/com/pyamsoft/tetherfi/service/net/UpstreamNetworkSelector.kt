@@ -21,16 +21,15 @@ interface  UpstreamNetworkSelector {
     /**
      * Intenta adquirir una red basada en la preferencia.
      *
-     * @param prefered La red que el usuario quiere usar idealmente.
-     * @param fallback La red de respaldo si la preferida falla (por defecto Celular).
-     * @return La red (Android Network) lista para usar.
-     * @throws IllegalStateException Si no se puede conectar a ninguna red.
+     * @param preferred La red que el usuario quiere usar idealmente.
+     * @param fallback La red de respaldo si la preferida falla (null = no usar fallback).
+     * @return La red (Android Network) lista para usar, o null si falla.
      */
     @CheckResult
     suspend fun  acquire(
-        prefered: UpstreamPref,
-        fallback: UpstreamPref = UpstreamPref.CELL
-    ): Network
+        preferred: UpstreamPref,
+        fallback: UpstreamPref? = UpstreamPref.CELL
+    ): Network?
 
     /**
      * Libera los recursos y callbacks de red registrados.
