@@ -29,6 +29,7 @@ import com.pyamsoft.tetherfi.server.ServerSocketTimeout
 import com.pyamsoft.tetherfi.server.SocketCreator
 import com.pyamsoft.tetherfi.server.broadcast.BroadcastNetworkStatus
 import com.pyamsoft.tetherfi.server.event.ServerStopRequestEvent
+import com.pyamsoft.tetherfi.server.ProxyRole
 import com.pyamsoft.tetherfi.server.lock.Locker
 import com.pyamsoft.tetherfi.server.network.SocketBinder
 import com.pyamsoft.tetherfi.server.proxy.ProxyConnectionInfo
@@ -125,23 +126,35 @@ internal constructor(
         socketTracker: SocketTracker,
     ) {
         try {
-            // Leer configuración de upstream proxy desde preferencias
-            val isUpstreamEnabled = proxyPreferences.listenForUpstreamProxyEnabledChanges().first()
-            val upstreamHost = proxyPreferences.listenForUpstreamProxyHostChanges().first()
-            val upstreamPort = proxyPreferences.listenForUpstreamProxyPortChanges().first()
-            
-            val upstreamProxyConfig: UpstreamProxyConfig? = if (isUpstreamEnabled) {
-                val config = UpstreamProxyConfig(host = upstreamHost, port = upstreamPort)
-                if (config.isValid()) {
-                    Timber.d("Upstream proxy enabled: $upstreamHost:$upstreamPort")
-                    config
+            val role = proxyPreferences.listenForProxyRoleChanges().first()
+            val isAutoGateway = proxyPreferences.listenForUpstreamAutoGatewayChanges().first()
+            val isUpstreamEnabled =
+                proxyPreferences.listenForUpstreamProxyEnabledChanges().first() &&
+                    role == ProxyRole.RELAY
+
+            val upstreamHostPref = proxyPreferences.listenForUpstreamProxyHostChanges().first()
+            val upstreamPortPref = proxyPreferences.listenForUpstreamProxyPortChanges().first()
+
+            val autoHost = hostConnection.hostName.ifBlank { "192.168.49.1" }
+            val effectiveHost =
+                if (!isUpstreamEnabled) ""
+                else if (isAutoGateway || upstreamHostPref.isBlank()) autoHost else upstreamHostPref
+
+            val effectivePort = upstreamPortPref.takeIf { it in 1..65535 } ?: 8228
+
+            val upstreamProxyConfig: UpstreamProxyConfig? =
+                if (isUpstreamEnabled) {
+                    val config = UpstreamProxyConfig(host = effectiveHost, port = effectivePort)
+                    if (config.isValid()) {
+                        Timber.d("Upstream proxy: ${config.host}:${config.port} (auto=$isAutoGateway)")
+                        config
+                    } else {
+                        Timber.w("Upstream config inválida: host='${config.host}' port=${config.port}")
+                        null
+                    }
                 } else {
-                    Timber.w("Upstream proxy enabled but config invalid: host='$upstreamHost' port=$upstreamPort")
                     null
                 }
-            } else {
-                null
-            }
 
             session.exchange(
                 scope = this,

@@ -36,6 +36,7 @@ import com.pyamsoft.tetherfi.core.InAppRatingPreferences
 import com.pyamsoft.tetherfi.core.Timber
 import com.pyamsoft.tetherfi.server.ExpertPreferences
 import com.pyamsoft.tetherfi.server.ProxyPreferences
+import com.pyamsoft.tetherfi.server.ProxyRole
 import com.pyamsoft.tetherfi.server.ServerDefaults
 import com.pyamsoft.tetherfi.server.ServerNetworkBand
 import com.pyamsoft.tetherfi.server.ServerPerformanceLimit
@@ -105,6 +106,11 @@ internal constructor(private val enforcer: ThreadEnforcer, context: Context) :
                             BROADCAST_TYPE.name,
                             PREFERRED_NETWORK.name,
                             SOCKET_TIMEOUT.name,
+                            PROXY_ROLE.name,
+                            UPSTREAM_AUTO_GATEWAY.name,
+                            UPSTREAM_PROXY_ENABLED.name,
+                            UPSTREAM_PROXY_HOST.name,
+                            UPSTREAM_PROXY_PORT.name,
                         ),
                     produceSharedPreferences = {
                       PreferenceManager.getDefaultSharedPreferences(context.applicationContext)
@@ -242,6 +248,29 @@ internal constructor(private val enforcer: ThreadEnforcer, context: Context) :
           key = UPSTREAM_PROXY_PORT,
           fallbackValue = DEFAULT_UPSTREAM_PROXY_PORT,
           value = { port },
+      )
+
+  override fun listenForUpstreamAutoGatewayChanges(): Flow<Boolean> =
+      getPreference(key = UPSTREAM_AUTO_GATEWAY, value = DEFAULT_UPSTREAM_AUTO_GATEWAY)
+          .flowOn(context = Dispatchers.IO)
+
+  override fun setUpstreamAutoGateway(enabled: Boolean) =
+      setPreference(
+          key = UPSTREAM_AUTO_GATEWAY,
+          fallbackValue = DEFAULT_UPSTREAM_AUTO_GATEWAY,
+          value = { enabled },
+      )
+
+  override fun listenForProxyRoleChanges(): Flow<ProxyRole> =
+      getPreference(key = PROXY_ROLE, value = DEFAULT_PROXY_ROLE.name)
+          .map { name -> runCatching { ProxyRole.valueOf(name) }.getOrElse { DEFAULT_PROXY_ROLE } }
+          .flowOn(context = Dispatchers.IO)
+
+  override fun setProxyRole(role: ProxyRole) =
+      setPreference(
+          key = PROXY_ROLE,
+          fallbackValue = DEFAULT_PROXY_ROLE.name,
+          value = { role.name },
       )
 
   override fun listenForNetworkBandChanges(): Flow<ServerNetworkBand> =
@@ -526,13 +555,17 @@ internal constructor(private val enforcer: ThreadEnforcer, context: Context) :
 
     private val SOCKET_TIMEOUT = longPreferencesKey("key_socket_timeout_1")
 
-                private val UPSTREAM_PROXY_ENABLED = booleanPreferencesKey("key_upstream_proxy_enabled_1")
-                private val UPSTREAM_PROXY_HOST = stringPreferencesKey("key_upstream_proxy_host_1")
-                private val UPSTREAM_PROXY_PORT = intPreferencesKey("key_upstream_proxy_port_1")
+        private val UPSTREAM_PROXY_ENABLED = booleanPreferencesKey("key_upstream_proxy_enabled_1")
+        private val UPSTREAM_PROXY_HOST = stringPreferencesKey("key_upstream_proxy_host_1")
+        private val UPSTREAM_PROXY_PORT = intPreferencesKey("key_upstream_proxy_port_1")
+        private val UPSTREAM_AUTO_GATEWAY = booleanPreferencesKey("key_upstream_auto_gateway_1")
+        private val PROXY_ROLE = stringPreferencesKey("key_proxy_role_1")
 
-                // Desactivado por defecto: sin upstream proxy para asegurar salida directa
-                private const val DEFAULT_UPSTREAM_PROXY_ENABLED = false
-                private const val DEFAULT_UPSTREAM_PROXY_HOST = ""
-                private const val DEFAULT_UPSTREAM_PROXY_PORT = 0
+        // Defaults: sin upstream (server-only) pero auto-gateway activado para relays cuando toque
+        private const val DEFAULT_UPSTREAM_PROXY_ENABLED = false
+        private const val DEFAULT_UPSTREAM_AUTO_GATEWAY = true
+        private val DEFAULT_PROXY_ROLE = ProxyRole.SERVER_ONLY
+        private const val DEFAULT_UPSTREAM_PROXY_HOST = ""
+        private const val DEFAULT_UPSTREAM_PROXY_PORT = 8228
   }
 }

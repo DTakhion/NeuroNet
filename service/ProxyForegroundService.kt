@@ -2,15 +2,24 @@ package com.pyamsoft.tetherfi.service
 
 import android.app.Service
 import android.content.Intent
+import android.net.Network
 import android.os.IBinder
+import com.pyamsoft.tetherfi.server.ProxyPreferences
+import com.pyamsoft.tetherfi.server.ProxyRole
 import com.pyamsoft.tetherfi.server.widi.WifiSharedProxy
 import com.pyamsoft.tetherfi.service.net.UpstreamNetworkSelector
 import com.pyamsoft.tetherfi.service.net.UpstreamPref
 import com.pyamsoft.tetherfi.service.notification.NotificationLauncher
 import dagger.hilt.android.AndroidEntryPoint
-import kotlinx.coroutines.*
-import timber.log.Timber
 import javax.inject.Inject
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.first
+import timber.log.Timber
 
 @AndroidEntryPoint
 class ProxyForegroundService : Service() {
@@ -25,6 +34,9 @@ class ProxyForegroundService : Service() {
 
     @Inject
     lateinit var notificationLauncher: NotificationLauncher
+
+    @Inject
+    lateinit var proxyPreferences: ProxyPreferences
 
     // Scope para corrutinas del service
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
@@ -100,6 +112,20 @@ class ProxyForegroundService : Service() {
 
         Timber.d("Intentando adquirir red upstream...")
 
+        val role = proxyPreferences.listenForProxyRoleChanges().first()
+        val isRelay = role == ProxyRole.RELAY
+        val isClient = role == ProxyRole.CLIENT_ONLY
+
+        if (isClient) {
+            notificationLauncher.update(
+                title = "Modo cliente",
+                description = "Este dispositivo no actúa como repetidor. Se detiene el servicio.",
+                isError = false,
+            )
+            stopSelf()
+            return
+        }
+
         // Reintentar WiFi hasta 3 veces (puede interrumpirse temporalmente al activar WiFi Direct)
         var upstreamNetwork: Network? = null
         var wifiAttempts = 0
@@ -111,16 +137,29 @@ class ProxyForegroundService : Service() {
             
             upstreamNetwork = upstreamSelector.acquire(
                 preferred = UpstreamPref.WIFI,
-                fallback = if (wifiAttempts >= maxWifiRetries) UpstreamPref.CELL else null
+                fallback = if (isRelay) null else if (wifiAttempts >= maxWifiRetries) UpstreamPref.CELL else null
             )
             
             if (upstreamNetwork == null && wifiAttempts < maxWifiRetries) {
                 Timber.w("WiFi no disponible aún, reintentando en 2 segundos...")
-                kotlinx.coroutines.delay(2000)
+                delay(2000)
             }
         }
         
         if (upstreamNetwork == null) {
+            if (isRelay) {
+                Timber.w("No se pudo adquirir WiFi en modo repetidor; forzamos rol CLIENTE")
+                proxyPreferences.setProxyRole(ProxyRole.CLIENT_ONLY)
+                proxyPreferences.setUpstreamProxyEnabled(false)
+                notificationLauncher.update(
+                    title = "Modo cliente aplicado",
+                    description = "El dispositivo no puede repetir (hotspot + Wi‑Fi). Conéctate como cliente.",
+                    isError = true,
+                )
+                stopSelf()
+                return
+            }
+
             throw IllegalStateException("No se pudo adquirir ninguna red después de $wifiAttempts intentos")
         }
 

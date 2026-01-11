@@ -48,4 +48,14 @@ interface ProxyPreferences {
   @CheckResult fun listenForUpstreamProxyPortChanges(): Flow<Int>
 
   fun setUpstreamProxyPort(port: Int)
+
+  // --- Nuevos campos para rol y gateway automático ---
+
+  @CheckResult fun listenForProxyRoleChanges(): Flow<ProxyRole>
+
+  fun setProxyRole(role: ProxyRole)
+
+  @CheckResult fun listenForUpstreamAutoGatewayChanges(): Flow<Boolean>
+
+  fun setUpstreamAutoGateway(enabled: Boolean)
 }
