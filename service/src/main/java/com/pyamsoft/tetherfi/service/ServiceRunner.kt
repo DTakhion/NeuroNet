@@ -24,6 +24,7 @@ import com.pyamsoft.tetherfi.server.broadcast.BroadcastObserver
 import com.pyamsoft.tetherfi.service.foreground.ForegroundLauncher
 import com.pyamsoft.tetherfi.service.foreground.ForegroundWatcher
 import com.pyamsoft.tetherfi.service.notification.NotificationLauncher
+import com.pyamsoft.tetherfi.service.relay.WhatsappRelayController
 import javax.inject.Inject
 import javax.inject.Singleton
 import kotlinx.coroutines.CoroutineScope
@@ -45,11 +46,14 @@ internal constructor(
     private val foregroundLauncher: ForegroundLauncher,
     private val serviceLauncher: ServiceLauncher,
     private val networkUpdater: BroadcastNetworkUpdater,
+    private val whatsappRelay: WhatsappRelayController,
 ) {
   private val runningState = MutableStateFlow(false)
 
   private fun CoroutineScope.startProxy() {
     val scope = this
+
+    whatsappRelay.start(scope = scope)
 
     // Watch the Wifi Receiver for events
     // without this block, we do not properly refresh

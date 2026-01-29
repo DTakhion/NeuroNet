@@ -61,6 +61,7 @@ private enum class SettingsContentTypes {
   BOTTOM_SPACER,
   EXPERIMENT_EXPLAIN,
   UPSTREAM_PROXY_CONFIG,
+    WHATSAPP_RELAY,
 }
 
 @Composable
@@ -188,14 +189,23 @@ private fun LazyListScope.renderExperiments(
     )
   }
 
-  item(
-      contentType = SettingsContentTypes.UPSTREAM_PROXY_CONFIG,
-  ) {
-    UpstreamProxySettings(
-        modifier = itemModifier,
-        proxyPreferences = proxyPreferences,
-    )
-  }
+    item(
+            contentType = SettingsContentTypes.UPSTREAM_PROXY_CONFIG,
+    ) {
+        UpstreamProxySettings(
+                modifier = itemModifier,
+                proxyPreferences = proxyPreferences,
+        )
+    }
+
+    item(
+            contentType = SettingsContentTypes.WHATSAPP_RELAY,
+    ) {
+        WhatsappRelaySettings(
+                modifier = itemModifier,
+                proxyPreferences = proxyPreferences,
+        )
+    }
 
   item(
       contentType = SettingsContentTypes.BOTTOM_SPACER,

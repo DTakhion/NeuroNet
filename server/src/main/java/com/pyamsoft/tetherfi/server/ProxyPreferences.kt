@@ -58,4 +58,33 @@ interface ProxyPreferences {
   @CheckResult fun listenForUpstreamAutoGatewayChanges(): Flow<Boolean>
 
   fun setUpstreamAutoGateway(enabled: Boolean)
+
+  // WhatsApp relay chain
+  @CheckResult fun listenForWhatsappProxyModeChanges(): Flow<Boolean>
+
+  fun setWhatsappProxyMode(enabled: Boolean)
+
+  @CheckResult fun listenForWhatsappFinalHostChanges(): Flow<String>
+
+  fun setWhatsappFinalHost(host: String)
+
+  @CheckResult fun listenForWhatsappFinalPortChanges(): Flow<Int>
+
+  fun setWhatsappFinalPort(port: Int)
+
+  @CheckResult fun listenForWhatsappNextHopHostChanges(): Flow<String>
+
+  fun setWhatsappNextHopHost(host: String)
+
+  @CheckResult fun listenForWhatsappNextHopPortChanges(): Flow<Int>
+
+  fun setWhatsappNextHopPort(port: Int)
+
+  @CheckResult fun listenForWhatsappListenerPortChanges(): Flow<Int>
+
+  fun setWhatsappListenerPort(port: Int)
+
+  @CheckResult fun listenForWhatsappTokenChanges(): Flow<String>
+
+  fun setWhatsappToken(token: String)
 }

@@ -111,6 +111,13 @@ internal constructor(private val enforcer: ThreadEnforcer, context: Context) :
                             UPSTREAM_PROXY_ENABLED.name,
                             UPSTREAM_PROXY_HOST.name,
                             UPSTREAM_PROXY_PORT.name,
+                            WHATSAPP_MODE.name,
+                            WHATSAPP_FINAL_HOST.name,
+                            WHATSAPP_FINAL_PORT.name,
+                            WHATSAPP_NEXT_HOP_HOST.name,
+                            WHATSAPP_NEXT_HOP_PORT.name,
+                            WHATSAPP_LISTENER_PORT.name,
+                            WHATSAPP_TOKEN.name,
                         ),
                     produceSharedPreferences = {
                       PreferenceManager.getDefaultSharedPreferences(context.applicationContext)
@@ -248,6 +255,79 @@ internal constructor(private val enforcer: ThreadEnforcer, context: Context) :
           key = UPSTREAM_PROXY_PORT,
           fallbackValue = DEFAULT_UPSTREAM_PROXY_PORT,
           value = { port },
+      )
+
+  override fun listenForWhatsappProxyModeChanges(): Flow<Boolean> =
+      getPreference(key = WHATSAPP_MODE, value = DEFAULT_WHATSAPP_MODE)
+          .flowOn(context = Dispatchers.IO)
+
+  override fun setWhatsappProxyMode(enabled: Boolean) =
+      setPreference(key = WHATSAPP_MODE, fallbackValue = DEFAULT_WHATSAPP_MODE, value = { enabled })
+
+  override fun listenForWhatsappFinalHostChanges(): Flow<String> =
+      getPreference(key = WHATSAPP_FINAL_HOST, value = DEFAULT_WHATSAPP_FINAL_HOST)
+          .flowOn(context = Dispatchers.IO)
+
+  override fun setWhatsappFinalHost(host: String) =
+      setPreference(
+          key = WHATSAPP_FINAL_HOST,
+          fallbackValue = DEFAULT_WHATSAPP_FINAL_HOST,
+          value = { host.trim() },
+      )
+
+  override fun listenForWhatsappFinalPortChanges(): Flow<Int> =
+      getPreference(key = WHATSAPP_FINAL_PORT, value = DEFAULT_WHATSAPP_FINAL_PORT)
+          .flowOn(context = Dispatchers.IO)
+
+  override fun setWhatsappFinalPort(port: Int) =
+      setPreference(
+          key = WHATSAPP_FINAL_PORT,
+          fallbackValue = DEFAULT_WHATSAPP_FINAL_PORT,
+          value = { port },
+      )
+
+  override fun listenForWhatsappNextHopHostChanges(): Flow<String> =
+      getPreference(key = WHATSAPP_NEXT_HOP_HOST, value = DEFAULT_WHATSAPP_NEXT_HOP_HOST)
+          .flowOn(context = Dispatchers.IO)
+
+  override fun setWhatsappNextHopHost(host: String) =
+      setPreference(
+          key = WHATSAPP_NEXT_HOP_HOST,
+          fallbackValue = DEFAULT_WHATSAPP_NEXT_HOP_HOST,
+          value = { host.trim() },
+      )
+
+  override fun listenForWhatsappNextHopPortChanges(): Flow<Int> =
+      getPreference(key = WHATSAPP_NEXT_HOP_PORT, value = DEFAULT_WHATSAPP_NEXT_HOP_PORT)
+          .flowOn(context = Dispatchers.IO)
+
+  override fun setWhatsappNextHopPort(port: Int) =
+      setPreference(
+          key = WHATSAPP_NEXT_HOP_PORT,
+          fallbackValue = DEFAULT_WHATSAPP_NEXT_HOP_PORT,
+          value = { port },
+      )
+
+  override fun listenForWhatsappListenerPortChanges(): Flow<Int> =
+      getPreference(key = WHATSAPP_LISTENER_PORT, value = DEFAULT_WHATSAPP_LISTENER_PORT)
+          .flowOn(context = Dispatchers.IO)
+
+  override fun setWhatsappListenerPort(port: Int) =
+      setPreference(
+          key = WHATSAPP_LISTENER_PORT,
+          fallbackValue = DEFAULT_WHATSAPP_LISTENER_PORT,
+          value = { port },
+      )
+
+  override fun listenForWhatsappTokenChanges(): Flow<String> =
+      getPreference(key = WHATSAPP_TOKEN, value = DEFAULT_WHATSAPP_TOKEN)
+          .flowOn(context = Dispatchers.IO)
+
+  override fun setWhatsappToken(token: String) =
+      setPreference(
+          key = WHATSAPP_TOKEN,
+          fallbackValue = DEFAULT_WHATSAPP_TOKEN,
+          value = { token.trim() },
       )
 
   override fun listenForUpstreamAutoGatewayChanges(): Flow<Boolean> =
@@ -553,7 +633,7 @@ internal constructor(private val enforcer: ThreadEnforcer, context: Context) :
 
     private val PREFERRED_NETWORK = stringPreferencesKey("key_preferred_network_1")
 
-    private val SOCKET_TIMEOUT = longPreferencesKey("key_socket_timeout_1")
+        private val SOCKET_TIMEOUT = longPreferencesKey("key_socket_timeout_1")
 
         private val UPSTREAM_PROXY_ENABLED = booleanPreferencesKey("key_upstream_proxy_enabled_1")
         private val UPSTREAM_PROXY_HOST = stringPreferencesKey("key_upstream_proxy_host_1")
@@ -561,11 +641,27 @@ internal constructor(private val enforcer: ThreadEnforcer, context: Context) :
         private val UPSTREAM_AUTO_GATEWAY = booleanPreferencesKey("key_upstream_auto_gateway_1")
         private val PROXY_ROLE = stringPreferencesKey("key_proxy_role_1")
 
+        private val WHATSAPP_MODE = booleanPreferencesKey("key_whatsapp_mode_1")
+        private val WHATSAPP_FINAL_HOST = stringPreferencesKey("key_whatsapp_final_host_1")
+        private val WHATSAPP_FINAL_PORT = intPreferencesKey("key_whatsapp_final_port_1")
+        private val WHATSAPP_NEXT_HOP_HOST = stringPreferencesKey("key_whatsapp_next_hop_host_1")
+        private val WHATSAPP_NEXT_HOP_PORT = intPreferencesKey("key_whatsapp_next_hop_port_1")
+        private val WHATSAPP_LISTENER_PORT = intPreferencesKey("key_whatsapp_listener_port_1")
+        private val WHATSAPP_TOKEN = stringPreferencesKey("key_whatsapp_token_1")
+
         // Defaults: sin upstream (server-only) pero auto-gateway activado para relays cuando toque
         private const val DEFAULT_UPSTREAM_PROXY_ENABLED = false
         private const val DEFAULT_UPSTREAM_AUTO_GATEWAY = true
         private val DEFAULT_PROXY_ROLE = ProxyRole.SERVER_ONLY
         private const val DEFAULT_UPSTREAM_PROXY_HOST = ""
         private const val DEFAULT_UPSTREAM_PROXY_PORT = 8228
+
+        private const val DEFAULT_WHATSAPP_MODE = false
+        private const val DEFAULT_WHATSAPP_FINAL_HOST = ""
+        private const val DEFAULT_WHATSAPP_FINAL_PORT = 443
+        private const val DEFAULT_WHATSAPP_NEXT_HOP_HOST = ""
+        private const val DEFAULT_WHATSAPP_NEXT_HOP_PORT = 0
+        private const val DEFAULT_WHATSAPP_LISTENER_PORT = 0
+        private const val DEFAULT_WHATSAPP_TOKEN = ""
   }
 }
